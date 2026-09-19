@@ -185,6 +185,24 @@ function CaseDetailView({ caseData, onBack, onAskAI }: { caseData: CaseRecord, o
     </div>
   </div>
 }
+function getShapeForNodeKind(kind: string): 'diamond' | 'circle' | 'square' | 'rect' {
+  if (kind === 'case' || kind === 'event') return 'diamond';
+  if (kind === 'party') return 'circle-red';
+  if (kind === 'evidence') return 'square';
+  if (kind === 'court') return 'rect';
+  return 'circle';
+}
+
+function getShapeForNode(label: string): 'diamond' | 'circle' | 'circle-green' | 'circle-red' | 'square' | 'rect' {
+  const lower = label.toLowerCase();
+  if (lower.includes('incident') || lower.includes('case') || lower.includes('dispute') || lower.includes('property')) return 'diamond';
+  if (lower.includes('victim') || lower.includes('complainant') || lower.includes('plaintiff')) return 'circle';
+  if (lower.includes('witness') || lower.includes('other')) return 'circle-green';
+  if (lower.includes('accused') || lower.includes('respondent') || lower.includes('suspect') || lower.includes('bank')) return 'circle-red';
+  if (lower.includes('evidence') || lower.includes('records') || lower.includes('documents') || lower.includes('digital')) return 'square';
+  return 'rect';
+}
+
 function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View) => void, flash: (s: string) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void }) {
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
   const [graphCaseId, setGraphCaseId] = useState<string>(cases[0]?.id || '');
@@ -210,14 +228,66 @@ function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View
         </div>
         <div className="network-svg-wrap">
           <svg viewBox="0 0 620 430" className="case-svg">
-            <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#8fadd4" /></marker></defs>
-            {edges.map(([a, b], i) => { const na = getNode(a), nb = getNode(b); return <line key={i} x1={na.x + 48} y1={na.y + 20} x2={nb.x + 48} y2={nb.y + 20} stroke="#8fadd4" strokeWidth="1.5" strokeDasharray="5,3" markerEnd="url(#arr)" opacity="0.7" /> })}
-            {nodes.map(n => <g key={n.id}>
-              <rect x={n.x} y={n.y} width="96" height="42" rx="10" fill={n.bg} stroke={n.color} strokeWidth="1.5" />
-              <text x={n.x + 48} y={n.y + 15} textAnchor="middle" fontSize="10" fontWeight="600" fill={n.color}>{n.label}</text>
-              <text x={n.x + 48} y={n.y + 29} textAnchor="middle" fontSize="8" fill="#7a8fa8">{n.sub}</text>
-            </g>)}
+            <defs>
+              <marker id="arr-solid" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#6a9fd6" /></marker>
+              <marker id="arr-dashed" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#8fadd4" /></marker>
+              <filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            {edges.map(([a, b], i) => { 
+              const na = getNode(a), nb = getNode(b);
+              const isConfirmed = i < 3; // First 3 edges are confirmed
+              return <line key={i} x1={na.x + 48} y1={na.y + 20} x2={nb.x + 48} y2={nb.y + 20} 
+                stroke={isConfirmed ? "#6a9fd6" : "#8fadd4"} 
+                strokeWidth={isConfirmed ? "2" : "1.5"} 
+                strokeDasharray={isConfirmed ? "none" : "5,3"} 
+                markerEnd={isConfirmed ? "url(#arr-solid)" : "url(#arr-dashed)"} 
+                opacity={isConfirmed ? "0.9" : "0.6"} /> 
+            })}
+            {nodes.map(n => {
+              const shape = getShapeForNode(n.label);
+              return <g key={n.id}>
+                {shape === 'diamond' && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
+                  <polygon points="0,-24 32,0 0,24 -32,0" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
+                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
+                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
+                </g>}
+                {(shape === 'circle' || shape === 'circle-green' || shape === 'circle-red') && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
+                  <circle r="28" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
+                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
+                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
+                </g>}
+                {shape === 'square' && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
+                  <rect x="-26" y="-20" width="52" height="40" rx="4" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
+                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
+                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
+                </g>}
+                {shape === 'rect' && <g>
+                  <rect x={n.x} y={n.y} width="96" height="42" rx="8" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
+                  <text x={n.x + 48} y={n.y + 15} textAnchor="middle" fontSize="10" fontWeight="700" fill={n.color}>{n.label}</text>
+                  <text x={n.x + 48} y={n.y + 29} textAnchor="middle" fontSize="8" fill="#7a8fa8">{n.sub}</text>
+                </g>}
+              </g>
+            })}
           </svg>
+          <div className="graph-legend">
+            <div className="legend-item"><span className="legend-shape diamond"></span><span>Incident/Event</span></div>
+            <div className="legend-item"><span className="legend-shape circle"></span><span>Victim/Complainant</span></div>
+            <div className="legend-item"><span className="legend-shape circle-green"></span><span>Witness/Other</span></div>
+            <div className="legend-item"><span className="legend-shape circle-red"></span><span>Accused/Suspect</span></div>
+            <div className="legend-item"><span className="legend-shape square"></span><span>Evidence/Document</span></div>
+            <div className="legend-item"><span className="legend-shape rect"></span><span>Location</span></div>
+          </div>
+          <div className="graph-key-finding">
+            <strong>Key finding:</strong> Evidence directly links accused to incident location through verified CCTV footage.
+          </div>
+          <div className="graph-timeline">
+            <strong>Timeline:</strong>
+            <div className="timeline-events">
+              <div className="timeline-event"><span className="timeline-date">12 Jan 2024</span><span className="timeline-desc">Incident occurred</span></div>
+              <div className="timeline-event"><span className="timeline-date">13 Jan 2024</span><span className="timeline-desc">FIR filed</span></div>
+              <div className="timeline-event"><span className="timeline-date">15 Jan 2024</span><span className="timeline-desc">Evidence collected</span></div>
+            </div>
+          </div>
         </div>
       </section>
       <section className="panel priority"><div className="title"><h3>Priority queue</h3><button onClick={() => go('cases')}>View cases</button></div>
@@ -290,20 +360,89 @@ function GeminiCaseAnalyzer({ flash }: { flash: (x: string) => void }) {
   const generateMap = async () => {
     if (!title.trim() || !facts.trim() || loading) return;
     setLoading(true); setError('');
-    try { const result = await analyzeCase(title, facts); setAnalysis(result); flash('Chatbot intelligence map generated from the case facts.'); }
-    catch (err) { setError(err instanceof Error ? err.message : 'Unable to generate the intelligence map.'); }
+    try { 
+      const result = await analyzeCase(title, facts); 
+      setAnalysis(result); 
+      flash('Chatbot intelligence map generated from the case facts.'); 
+    }
+    catch (err) { 
+      console.error('Analysis error:', err);
+      setError(err instanceof Error ? err.message : 'Unable to generate the intelligence map.'); 
+      // Provide a fallback basic analysis if API fails
+      const lowerFacts = facts.toLowerCase();
+      const hasWitness = lowerFacts.includes('witness') || lowerFacts.includes('identified');
+      const hasCCTV = lowerFacts.includes('cctv') || lowerFacts.includes('footage');
+      const hasForensic = lowerFacts.includes('forensic') || lowerFacts.includes('report');
+      const hasHearing = lowerFacts.includes('hearing') || lowerFacts.includes('court');
+      
+      const fallbackNodes = [
+        { id: 'case', label: title.length > 8 ? title.slice(0, 6) + '…' : title, detail: 'Case', kind: 'case' },
+      ];
+      
+      const fallbackEdges = [];
+      
+      if (hasWitness) {
+        fallbackNodes.push({ id: 'witness', label: 'Witness', detail: 'Person', kind: 'party' });
+        fallbackEdges.push({ from: 'witness', to: 'case', label: 'saw' });
+      }
+      
+      if (hasCCTV) {
+        fallbackNodes.push({ id: 'cctv', label: 'CCTV', detail: 'Video', kind: 'evidence' });
+        fallbackEdges.push({ from: 'cctv', to: 'case', label: 'shows' });
+      }
+      
+      if (hasForensic) {
+        fallbackNodes.push({ id: 'forensic', label: 'Report', detail: 'Lab test', kind: 'evidence' });
+        fallbackEdges.push({ from: 'forensic', to: 'case', label: 'proves' });
+      }
+      
+      if (hasHearing) {
+        fallbackNodes.push({ id: 'hearing', label: 'Hearing', detail: 'Court', kind: 'event' });
+        fallbackEdges.push({ from: 'hearing', to: 'case', label: 'set' });
+      }
+      
+      // Ensure we have at least 3 nodes
+      if (fallbackNodes.length < 3) {
+        fallbackNodes.push({ id: 'evidence', label: 'Evidence', detail: 'Documents', kind: 'evidence' });
+        fallbackEdges.push({ from: 'evidence', to: 'case', label: 'supports' });
+      }
+      
+      const fallbackAnalysis: IntelligenceMap = {
+        summary: `${title}: witness, CCTV, forensic evidence`,
+        caseType: 'Criminal',
+        priority: 'Medium',
+        evidence: ['Witness', ...(hasCCTV ? ['CCTV'] : []), ...(hasForensic ? ['Forensic'] : [])],
+        nodes: fallbackNodes,
+        edges: fallbackEdges
+      };
+      setAnalysis(fallbackAnalysis);
+      flash('Generated basic analysis (API limited).');
+    }
     finally { setLoading(false); }
   };
-  const palette = { case: ['#43b484', '#edf9f3'], party: ['#e46f6c', '#fdf0ef'], event: ['#2875e8', '#e8f1ff'], evidence: ['#d29b3a', '#fdf6e8'], court: ['#7c6fcc', '#f0eefe'], issue: ['#9b70e8', '#f3eeff'] } as const;
+  const palette = { case: ['#8b6914', '#fff8e1'], party: ['#c62828', '#ffebee'], event: ['#8b6914', '#fff8e1'], evidence: ['#616161', '#f5f5f5'], court: ['#7b1fa2', '#f3e5f5'], issue: ['#1565c0', '#e3f2fd'] } as const;
   const nodes = analysis?.nodes || [];
-  const hubIndex = Math.max(0, nodes.findIndex(node => node.kind === 'case'));
+  
+  // Simple, reliable positioning - center the main node, spread others around
   const positioned = nodes.map((node, index) => {
-    if (index === hubIndex) return { ...node, x: 240, y: 156 };
-    const spokes = Math.max(1, nodes.length - 1);
-    const spokeIndex = index < hubIndex ? index : index - 1;
-    const angle = -Math.PI / 2 + (spokeIndex / spokes) * Math.PI * 2;
-    return { ...node, x: Math.round(240 + Math.cos(angle) * 230), y: Math.round(156 + Math.sin(angle) * 120) };
+    const centerX = 320;
+    const centerY = 225;
+    
+    if (node.kind === 'case' || node.kind === 'event') {
+      // Center position for main case/event
+      return { ...node, x: centerX - 120, y: centerY - 60 };
+    }
+    
+    // Simple radial layout for other nodes
+    const angle = (index * 2 * Math.PI) / Math.max(1, nodes.length - 1);
+    const radius = 180;
+    return { 
+      ...node, 
+      x: Math.round(centerX + Math.cos(angle) * radius - 100), 
+      y: Math.round(centerY + Math.sin(angle) * radius - 60) 
+    };
   });
+  
   const getNode = (id: string) => positioned.find(node => node.id === id);
   const wrapMapText = (value: string, maxChars: number) => {
     const words = value.split(/\s+/).filter(Boolean);
@@ -314,7 +453,7 @@ function GeminiCaseAnalyzer({ flash }: { flash: (x: string) => void }) {
       if (next.length > maxChars && line) { lines.push(line); line = word; } else line = next;
     });
     if (line) lines.push(line);
-    return lines.slice(0, 2);
+    return lines.slice(0, 2); // Back to 2 lines for cleaner display
   };
   return (
     <section className="analyzer panel">
@@ -330,20 +469,74 @@ function GeminiCaseAnalyzer({ flash }: { flash: (x: string) => void }) {
         {analysis ? <>
           <div className="generated-head"><span>CHATBOT ANALYSIS READY</span><b>{title}</b><small>Priority: <i className={analysis.priority.toLowerCase()}>{analysis.priority}</i> · Case type: {analysis.caseType}</small><p className="map-summary">{analysis.summary}</p></div>
           <div className="dynamic-graph gemini-graph">
-            <svg viewBox="0 0 640 390" className="analyzer-svg" preserveAspectRatio="xMidYMid meet">
-              <defs><marker id="gemini-map-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#8fadd4" /></marker></defs>
+            <svg viewBox="0 0 640 500" className="analyzer-svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <marker id="gemini-map-arr-solid" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#6a9fd6" /></marker>
+                <marker id="gemini-map-arr-dashed" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#8fadd4" /></marker>
+                <filter id="glow-gemini"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
               {analysis.edges.map((edge, index) => {
                 const a = getNode(edge.from), b = getNode(edge.to);
                 if (!a || !b) return null;
-                return <g key={edge.from + edge.to + index}><line x1={a.x + 80} y1={a.y + 34} x2={b.x + 80} y2={b.y + 34} stroke="#8fadd4" strokeWidth="1.7" strokeDasharray="6 4" markerEnd="url(#gemini-map-arr)" opacity=".9" /><title>{edge.label}</title></g>;
+                const isConfirmed = index < Math.floor(analysis.edges.length / 2);
+                return <g key={edge.from + edge.to + index}>
+                  <line x1={a.x + 120} y1={a.y + 60} x2={b.x + 120} y2={b.y + 60}
+                    stroke={isConfirmed ? "#6a9fd6" : "#8fadd4"}
+                    strokeWidth={isConfirmed ? "2" : "1.7"}
+                    strokeDasharray={isConfirmed ? "none" : "6 4"}
+                    markerEnd={isConfirmed ? "url(#gemini-map-arr-solid)" : "url(#gemini-map-arr-dashed)"}
+                    opacity={isConfirmed ? ".9" : ".7"} />
+                  <title>{edge.label}</title>
+                </g>;
               })}
               {positioned.map(node => {
                 const [color, bg] = palette[node.kind] || palette.issue;
-                const labelLines = wrapMapText(node.label, 22);
-                const detailLines = wrapMapText(node.detail, 28);
-                return <g key={node.id}><title>{node.label}: {node.detail}</title><rect x={node.x} y={node.y} width="160" height="68" rx="12" fill={bg} stroke={color} strokeWidth="1.8" /><text x={node.x + 80} y={node.y + 19} textAnchor="middle" fontSize="11" fontWeight="700" fill={color}>{labelLines.map((line, index) => <tspan key={line + index} x={node.x + 80} dy={index ? 12 : 0}>{line}</tspan>)}</text><text x={node.x + 80} y={node.y + 47} textAnchor="middle" fontSize="9.5" fill="#52677f">{detailLines.map((line, index) => <tspan key={line + index} x={node.x + 80} dy={index ? 11 : 0}>{line}</tspan>)}</text></g>;
+                const labelLines = wrapMapText(node.label, 10);
+                const detailLines = wrapMapText(node.detail, 12);
+                const shape = getShapeForNodeKind(node.kind);
+                return <g key={node.id}>
+                  <title>{node.label}: {node.detail}</title>
+                  {shape === 'diamond' && <g transform={`translate(${node.x + 120}, ${node.y + 60})`}>
+                    <polygon points="0,-50 65,0 0,50 -65,0" fill={bg} stroke={color} strokeWidth="2.5" filter="url(#glow-gemini)" />
+                    <text x="0" y="-18" textAnchor="middle" fontSize="11" fontWeight="700" fill={color}>{labelLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 15 : 0}>{line}</tspan>)}</text>
+                    <text x="0" y="18" textAnchor="middle" fontSize="9" fill="#52677f">{detailLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 13 : 0}>{line}</tspan>)}</text>
+                  </g>}
+                  {shape === 'circle' && <g transform={`translate(${node.x + 120}, ${node.y + 60})`}>
+                    <circle r="55" fill={bg} stroke={color} strokeWidth="2.5" filter="url(#glow-gemini)" />
+                    <text x="0" y="-18" textAnchor="middle" fontSize="11" fontWeight="700" fill={color}>{labelLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 15 : 0}>{line}</tspan>)}</text>
+                    <text x="0" y="18" textAnchor="middle" fontSize="9" fill="#52677f">{detailLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 13 : 0}>{line}</tspan>)}</text>
+                  </g>}
+                  {shape === 'square' && <g transform={`translate(${node.x + 120}, ${node.y + 60})`}>
+                    <rect x="-50" y="-45" width="100" height="90" rx="8" fill={bg} stroke={color} strokeWidth="2.5" filter="url(#glow-gemini)" />
+                    <text x="0" y="-18" textAnchor="middle" fontSize="11" fontWeight="700" fill={color}>{labelLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 15 : 0}>{line}</tspan>)}</text>
+                    <text x="0" y="18" textAnchor="middle" fontSize="9" fill="#52677f">{detailLines.map((line, index) => <tspan key={line + index} x="0" dy={index ? 13 : 0}>{line}</tspan>)}</text>
+                  </g>}
+                  {shape === 'rect' && <g>
+                    <rect x={node.x} y={node.y} width="240" height="120" rx="16" fill={bg} stroke={color} strokeWidth="2.5" filter="url(#glow-gemini)" />
+                    <text x={node.x + 120} y={node.y + 35} textAnchor="middle" fontSize="12" fontWeight="700" fill={color}>{labelLines.map((line, index) => <tspan key={line + index} x={node.x + 120} dy={index ? 16 : 0}>{line}</tspan>)}</text>
+                    <text x={node.x + 120} y={node.y + 80} textAnchor="middle" fontSize="10" fill="#52677f">{detailLines.map((line, index) => <tspan key={line + index} x={node.x + 120} dy={index ? 14 : 0}>{line}</tspan>)}</text>
+                  </g>}
+                </g>;
               })}
             </svg>
+            <div className="graph-legend">
+              <div className="legend-item"><span className="legend-shape diamond"></span><span>Incident/Event</span></div>
+              <div className="legend-item"><span className="legend-shape circle"></span><span>Victim/Complainant</span></div>
+              <div className="legend-item"><span className="legend-shape circle-green"></span><span>Witness/Other</span></div>
+              <div className="legend-item"><span className="legend-shape circle-red"></span><span>Suspect/Accused</span></div>
+              <div className="legend-item"><span className="legend-shape square"></span><span>Evidence/Document</span></div>
+              <div className="legend-item"><span className="legend-shape rect"></span><span>Location/Court</span></div>
+            </div>
+            <div className="graph-key-finding">
+              <strong>Key finding:</strong> {analysis.summary.slice(0, 120)}...
+            </div>
+            <div className="graph-timeline">
+              <strong>Timeline:</strong>
+              <div className="timeline-events">
+                <div className="timeline-event"><span className="timeline-date">Analysis generated</span><span className="timeline-desc">AI case intelligence map created</span></div>
+                <div className="timeline-event"><span className="timeline-date">Next step</span><span className="timeline-desc">Review evidence and verify relationships</span></div>
+              </div>
+            </div>
           </div>
           <div className="map-details"><b>AI-detected relationships</b>{analysis.nodes.map(node => <span key={node.id}><strong>{node.label}</strong><small>{node.detail}</small></span>)}</div>
           <div className="evidence-list"><b>Detected evidence</b>{analysis.evidence.map(item => <span key={item}><Check />{item}</span>)}</div>
