@@ -7,12 +7,12 @@ export const REAL_CASES = [
     chartData: [65, 72, 58, 80, 75, 88, 70],
     graphSub: 'State vs. R. Singh · IPC 302',
     nodes: [
-      { id: 'victim', label: 'Victim', sub: 'Sohan Lal', x: 50, y: 210, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'accused', label: 'Accused', sub: 'R. Singh', x: 260, y: 60, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'witness', label: 'Witness', sub: 'Rajesh Meena', x: 470, y: 210, color: '#9b70e8', bg: '#f3eeff' },
-      { id: 'incident', label: '⚖ Incident', sub: '12 Jan 2024', x: 260, y: 210, color: '#43b484', bg: '#edf9f3' },
-      { id: 'evidence', label: 'Evidence', sub: '4 verified files', x: 90, y: 340, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'court', label: 'Court', sub: '20 Sep 2026', x: 430, y: 340, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'victim', label: 'Victim', sub: 'Sohan Lal', x: 50, y: 210, color: '#2e7d32', bg: '#e8f5e9' },
+      { id: 'accused', label: 'Accused', sub: 'R. Singh', x: 260, y: 60, color: '#c62828', bg: '#ffebee' },
+      { id: 'witness', label: 'Witness', sub: 'Rajesh Meena', x: 470, y: 210, color: '#1565c0', bg: '#e3f2fd' },
+      { id: 'incident', label: '⚖ Incident', sub: '12 Jan 2024', x: 260, y: 210, color: '#8b6914', bg: '#fff8e1' },
+      { id: 'evidence', label: 'Evidence', sub: '4 verified files', x: 90, y: 340, color: '#616161', bg: '#f5f5f5' },
+      { id: 'court', label: 'Court', sub: '20 Sep 2026', x: 430, y: 340, color: '#7b1fa2', bg: '#f3e5f5' },
     ],
     edges: [['victim', 'incident'], ['accused', 'incident'], ['witness', 'incident'], ['incident', 'evidence'], ['incident', 'court']]
   },
@@ -24,11 +24,11 @@ export const REAL_CASES = [
     chartData: [40, 55, 50, 63, 58, 70, 65],
     graphSub: 'Meena vs. Rajesh · CPC Order 39',
     nodes: [
-      { id: 'plaintiff', label: 'Plaintiff', sub: 'Meena Devi', x: 70, y: 170, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'respondent', label: 'Respondent', sub: 'Rajesh Kumar', x: 450, y: 170, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'property', label: '⚖ Property', sub: '2.4 Acres, Sikar', x: 260, y: 170, color: '#43b484', bg: '#edf9f3' },
-      { id: 'documents', label: 'Records', sub: '2 pending', x: 150, y: 320, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'court', label: 'Court', sub: 'District Court', x: 370, y: 320, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'plaintiff', label: 'Plaintiff', sub: 'Meena Devi', x: 70, y: 170, color: '#2e7d32', bg: '#e8f5e9' },
+      { id: 'respondent', label: 'Respondent', sub: 'Rajesh Kumar', x: 450, y: 170, color: '#c62828', bg: '#ffebee' },
+      { id: 'property', label: '⚖ Property', sub: '2.4 Acres, Sikar', x: 260, y: 170, color: '#8b6914', bg: '#fff8e1' },
+      { id: 'documents', label: 'Records', sub: '2 pending', x: 150, y: 320, color: '#616161', bg: '#f5f5f5' },
+      { id: 'court', label: 'Court', sub: 'District Court', x: 370, y: 320, color: '#7b1fa2', bg: '#f3e5f5' },
     ],
     edges: [['plaintiff', 'property'], ['respondent', 'property'], ['property', 'documents'], ['property', 'court']]
   },
@@ -40,11 +40,11 @@ export const REAL_CASES = [
     chartData: [30, 45, 38, 55, 52, 60, 58],
     graphSub: 'Anita vs. City Bank · Consumer Act',
     nodes: [
-      { id: 'complainant', label: 'Complainant', sub: 'Anita Sharma', x: 80, y: 200, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'bank', label: 'Respondent', sub: 'City Bank Ltd.', x: 440, y: 200, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'dispute', label: '⚖ Dispute', sub: '₹48,000 deduction', x: 260, y: 200, color: '#43b484', bg: '#edf9f3' },
-      { id: 'digital', label: 'Evidence', sub: 'Digital Records', x: 260, y: 60, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'forum', label: 'Court', sub: 'Consumer Forum', x: 260, y: 320, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'complainant', label: 'Complainant', sub: 'Anita Sharma', x: 80, y: 200, color: '#2e7d32', bg: '#e8f5e9' },
+      { id: 'bank', label: 'Respondent', sub: 'City Bank Ltd.', x: 440, y: 200, color: '#c62828', bg: '#ffebee' },
+      { id: 'dispute', label: '⚖ Dispute', sub: '₹48,000 deduction', x: 260, y: 200, color: '#8b6914', bg: '#fff8e1' },
+      { id: 'digital', label: 'Evidence', sub: 'Digital Records', x: 260, y: 60, color: '#616161', bg: '#f5f5f5' },
+      { id: 'forum', label: 'Court', sub: 'Consumer Forum', x: 260, y: 320, color: '#7b1fa2', bg: '#f3e5f5' },
     ],
     edges: [['complainant', 'dispute'], ['bank', 'dispute'], ['dispute', 'digital'], ['dispute', 'forum']]
   }

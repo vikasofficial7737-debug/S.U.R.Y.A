@@ -33,7 +33,7 @@ function apiKey() {
 }
 
 async function generate(prompt: string, responseSchema?: Record<string, unknown>) {
-  const generationConfig: Record<string, unknown> = { temperature: responseSchema ? 0.1 : 0.25, maxOutputTokens: responseSchema ? 8192 : 8192 };
+  const generationConfig: Record<string, unknown> = { temperature: responseSchema ? 0.2 : 0.25, maxOutputTokens: responseSchema ? 4096 : 8192 };
   if (responseSchema) {
     generationConfig.responseMimeType = 'application/json';
     generationConfig.responseSchema = responseSchema;
@@ -85,11 +85,11 @@ const mapSchema = {
     priority: { type: 'string', enum: ['High', 'Medium', 'Low'] },
     evidence: { type: 'array', items: { type: 'string' } },
     nodes: {
-      type: 'array', minItems: 3, maxItems: 8,
+      type: 'array', minItems: 3, maxItems: 5,
       items: { type: 'object', properties: { id: { type: 'string' }, label: { type: 'string' }, detail: { type: 'string' }, kind: { type: 'string', enum: ['case', 'party', 'event', 'evidence', 'court', 'issue'] } }, required: ['id', 'label', 'detail', 'kind'] },
     },
     edges: {
-      type: 'array', maxItems: 10,
+      type: 'array', maxItems: 6,
       items: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string' } }, required: ['from', 'to', 'label'] },
     },
   },
@@ -97,18 +97,19 @@ const mapSchema = {
 } as const;
 
 export async function analyzeCase(title: string, facts: string): Promise<IntelligenceMap> {
-  const prompt = `Analyze this legal case only from the supplied text. Create a factual relationship map. Do not add parties, evidence, statutes, or events that are not present or directly inferable.\n\nTitle: ${title}\nFacts: ${facts}\n\nKeep every string short. Return exactly one complete JSON object that matches the requested schema: 4–7 uniquely-id'd nodes and at most 8 directed edges. No Markdown or explanation outside the JSON.`;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const prompt = `Analyze this legal case only from the supplied text. Create a factual relationship map. Do not add parties, evidence, statutes, or events that are not present or directly inferable.\n\nTitle: ${title}\nFacts: ${facts}\n\nIMPORTANT: Keep all text VERY SHORT. Node labels: max 10 characters. Node details: max 12 characters. Edge labels: max 8 characters. Use simple terms like "Witness", "CCTV", "Report", "Hearing" instead of long descriptions.\n\nReturn exactly one complete JSON object that matches the requested schema: 3–5 uniquely-id'd nodes and at most 6 directed edges. No Markdown or explanation outside the JSON.`;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const retryNote = attempt ? '\nYour previous response was incomplete. Ensure every quote and bracket is closed.' : '';
+      const retryNote = attempt ? '\nYour previous response was incomplete. Ensure every quote and bracket is closed and the JSON is valid.' : '';
       const raw = await generate(prompt + retryNote, mapSchema);
       const json = raw.replace(/^\`\`\`json\s*/i, '').replace(/^\`\`\`\s*/i, '').replace(/\s*\`\`\`$/, '').trim();
       const parsed = JSON.parse(json) as IntelligenceMap;
       if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges) || parsed.nodes.length < 3) throw new Error('Incomplete map');
       return parsed;
-    } catch {
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
       // A retry handles a rare truncated structured response from the provider.
     }
   }
-  throw new Error('The chatbot returned an incomplete map twice. Please click Generate again.');
+  throw new Error('The chatbot returned an incomplete map. Please try again with simpler case facts or check your API key configuration.');
 }
