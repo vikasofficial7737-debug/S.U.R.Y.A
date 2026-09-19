@@ -8,6 +8,7 @@ import './finder.css';
 import './judgment.css';
 import { JUDGMENTS, CITIZEN_GUIDES, type Judgment, type CitizenGuide } from './data/judgments';
 import { analyzeCase, askGemini, type CaseContext, type IntelligenceMap } from './lib/gemini';
+import { CaseGraph } from './components/CaseGraph';
 type Role = 'citizen' | 'lawyer' | 'student'; type View = 'landing' | 'home' | 'chat' | 'cases' | 'library' | 'lawyers' | 'calendar';
 const info = { citizen: { name: 'Citizen', icon: UserRound, color: 'orange', promise: 'Clear legal guidance, when you need it.' }, lawyer: { name: 'Lawyer', icon: BriefcaseBusiness, color: 'blue', promise: 'Organize cases. Work with clarity.' }, student: { name: 'Student', icon: GraduationCap, color: 'green', promise: 'Understand landmark cases, simply.' } } as const;
 const nav = { citizen: [['Home', Home, 'home'], ['Ask S.U.R.Y.A.', Bot, 'chat'], ['Find a Lawyer', Users, 'lawyers'], ['My Legal Steps', Check, 'cases'], ['Know Your Rights', BookOpen, 'library']], lawyer: [['Dashboard', Home, 'home'], ['My Cases', Briefcase, 'cases'], ['AI Case Assistant', Sparkles, 'chat'], ['Judgment Research', BookOpen, 'library'], ['Calendar & Reminders', CalendarDays, 'calendar']], student: [['Study Home', Home, 'home'], ['Case Library', BookOpen, 'library'], ['Ask about a Case', Bot, 'chat'], ['My Notes', FileText, 'cases']] } as const;
@@ -32,14 +33,26 @@ const REAL_CASES = [
     chartData: [65, 72, 58, 80, 75, 88, 70],
     graphSub: 'State vs. R. Singh · IPC 302',
     nodes: [
-      { id: 'victim', label: 'Victim', sub: 'Sohan Lal', x: 50, y: 210, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'accused', label: 'Accused', sub: 'R. Singh', x: 260, y: 60, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'witness', label: 'Witness', sub: 'Rajesh Meena', x: 470, y: 210, color: '#9b70e8', bg: '#f3eeff' },
-      { id: 'incident', label: '⚖ Incident', sub: '12 Jan 2024', x: 260, y: 210, color: '#43b484', bg: '#edf9f3' },
-      { id: 'evidence', label: 'Evidence', sub: '4 verified files', x: 90, y: 340, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'court', label: 'Court', sub: '20 Sep 2026', x: 430, y: 340, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'victim', label: 'Victim', sub: 'Sohan Lal', x: 90, y: 150, role: 'victim', info: 'Deceased; last seen near his residence on the evening of 12 Jan 2024.' },
+      { id: 'accused', label: 'Accused', sub: 'R. Singh', x: 320, y: 80, role: 'suspect', info: 'Charged under IPC 302. The defense claims an alibi for the night of the incident.' },
+      { id: 'witness', label: 'Witness', sub: 'Rajesh Meena', x: 550, y: 155, role: 'witness', info: 'Eyewitness testimony places the accused at the scene; cross-examination is pending.' },
+      { id: 'incident', label: 'Incident', sub: '12 Jan 2024', x: 320, y: 240, role: 'incident', info: 'Alleged murder on 12 Jan 2024; the basis of the IPC 302 charge.' },
+      { id: 'evidence', label: 'Evidence', sub: '4 verified files', x: 105, y: 335, role: 'evidence', info: 'CCTV footage and the forensic report are verified; call records and site photos are under review.' },
+      { id: 'court', label: 'Court', sub: '20 Sep 2026', x: 450, y: 350, role: 'location', info: 'Sessions Court, Jaipur. Next hearing: cross-examination of the forensic expert.' },
     ],
-    edges: [['victim', 'incident'], ['accused', 'incident'], ['witness', 'incident'], ['incident', 'evidence'], ['incident', 'court']]
+    edges: [
+      { from: 'victim', to: 'incident', label: 'victim of' },
+      { from: 'accused', to: 'incident', label: 'charged with' },
+      { from: 'witness', to: 'incident', label: 'saw' },
+      { from: 'incident', to: 'evidence', label: 'supported by' },
+      { from: 'incident', to: 'court', label: 'listed at' },
+    ],
+    graphTimeline: [
+      { date: '12 Jan 2024', label: 'Incident occurred' },
+      { date: '5 Mar 2024', label: 'Charge sheet filed' },
+      { date: '20 Apr 2026', label: 'Witness examined' },
+      { date: '20 Sep 2026', label: 'Next hearing' },
+    ]
   },
   {
     id: 'meena-rajesh', title: 'Meena vs. Rajesh', ipc: 'CPC Order 39', court: 'District Court, Jaipur', date: '24 Sep 2026', daysLeft: 5, priority: 'MEDIUM', judge: 'Hon. Justice S.R. Gupta', status: 'Documents Pending',
@@ -49,13 +62,24 @@ const REAL_CASES = [
     chartData: [40, 55, 50, 63, 58, 70, 65],
     graphSub: 'Meena vs. Rajesh · CPC Order 39',
     nodes: [
-      { id: 'plaintiff', label: 'Plaintiff', sub: 'Meena Devi', x: 70, y: 170, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'respondent', label: 'Respondent', sub: 'Rajesh Kumar', x: 450, y: 170, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'property', label: '⚖ Property', sub: '2.4 Acres, Sikar', x: 260, y: 170, color: '#43b484', bg: '#edf9f3' },
-      { id: 'documents', label: 'Records', sub: '2 pending', x: 150, y: 320, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'court', label: 'Court', sub: 'District Court', x: 370, y: 320, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'plaintiff', label: 'Plaintiff', sub: 'Meena Devi', x: 95, y: 130, role: 'victim', info: 'Claims recorded ownership of the 2.4 acre parcel via a registered 2019 sale deed.' },
+      { id: 'respondent', label: 'Respondent', sub: 'Rajesh Kumar', x: 540, y: 130, role: 'suspect', info: 'Disputes the recorded boundaries and alleges encroachment on the parcel.' },
+      { id: 'property', label: 'Property', sub: '2.4 Acres, Sikar', x: 318, y: 155, role: 'incident', info: 'Subject land parcel; boundaries are contested between the parties.' },
+      { id: 'documents', label: 'Records', sub: '2 pending', x: 130, y: 330, role: 'evidence', info: 'Patwari records and the survey map remain unverified by the court registry.' },
+      { id: 'court', label: 'Court', sub: 'District Court', x: 475, y: 340, role: 'location', info: 'District Court, Jaipur. The matter is at the evidence stage.' },
     ],
-    edges: [['plaintiff', 'property'], ['respondent', 'property'], ['property', 'documents'], ['property', 'court']]
+    edges: [
+      { from: 'plaintiff', to: 'property', label: 'claims' },
+      { from: 'respondent', to: 'property', label: 'disputes' },
+      { from: 'property', to: 'documents', label: 'recorded in' },
+      { from: 'property', to: 'court', label: 'listed at' },
+    ],
+    graphTimeline: [
+      { date: '3 Feb 2025', label: 'Plaint filed' },
+      { date: '15 Mar 2025', label: 'Notice issued' },
+      { date: '22 May 2025', label: 'Written statement' },
+      { date: '24 Sep 2026', label: 'Evidence stage hearing' },
+    ]
   },
   {
     id: 'anita-citybank', title: 'Anita vs. City Bank', ipc: 'Consumer Act', court: 'Consumer Forum', date: '01 Oct 2026', daysLeft: 12, priority: 'LOW', judge: 'President, Forum', status: 'Under Review',
@@ -65,13 +89,24 @@ const REAL_CASES = [
     chartData: [30, 45, 38, 55, 52, 60, 58],
     graphSub: 'Anita vs. City Bank · Consumer Act',
     nodes: [
-      { id: 'complainant', label: 'Complainant', sub: 'Anita Sharma', x: 80, y: 200, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'bank', label: 'Respondent', sub: 'City Bank Ltd.', x: 440, y: 200, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'dispute', label: '⚖ Dispute', sub: '₹48,000 deduction', x: 260, y: 200, color: '#43b484', bg: '#edf9f3' },
-      { id: 'digital', label: 'Evidence', sub: 'Digital Records', x: 260, y: 60, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'forum', label: 'Court', sub: 'Consumer Forum', x: 260, y: 320, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'complainant', label: 'Complainant', sub: 'Anita Sharma', x: 90, y: 150, role: 'victim', info: 'Account holder disputing an unauthorized deduction of ₹48,000 in March 2026.' },
+      { id: 'bank', label: 'Respondent', sub: 'City Bank Ltd.', x: 545, y: 150, role: 'suspect', info: 'Has not refunded the amount despite written complaints and escalations.' },
+      { id: 'dispute', label: 'Dispute', sub: '₹48,000 deduction', x: 318, y: 240, role: 'incident', info: 'Unauthorized deduction from the savings account, raised as a consumer complaint.' },
+      { id: 'digital', label: 'Evidence', sub: 'Digital Records', x: 320, y: 75, role: 'evidence', info: 'Bank statements and the transaction dispute form establish the deduction.' },
+      { id: 'forum', label: 'Court', sub: 'Consumer Forum', x: 318, y: 360, role: 'location', info: 'Consumer Forum. The complaint is under review; order is pending.' },
     ],
-    edges: [['complainant', 'dispute'], ['bank', 'dispute'], ['dispute', 'digital'], ['dispute', 'forum']]
+    edges: [
+      { from: 'complainant', to: 'dispute', label: 'filed' },
+      { from: 'bank', to: 'dispute', label: 'respondent in' },
+      { from: 'dispute', to: 'digital', label: 'proven by' },
+      { from: 'dispute', to: 'forum', label: 'listed at' },
+    ],
+    graphTimeline: [
+      { date: '10 Apr 2026', label: 'Complaint filed' },
+      { date: '28 Apr 2026', label: 'Bank notice sent' },
+      { date: '20 Jun 2026', label: 'Written reply received' },
+      { date: '01 Oct 2026', label: 'Forum review' },
+    ]
   }
 ];
 type CaseRecord = typeof REAL_CASES[0];
@@ -112,14 +147,24 @@ function createCaseFromForm(form: CaseForm): CaseRecord {
     chartData: [18, 24, 30, 36, 42, 48, 55],
     graphSub: `${form.title.trim()} · ${form.ipc.trim() || 'General'}`,
     nodes: [
-      { id: 'party', label: 'Party', sub: party, x: 50, y: 210, color: '#2875e8', bg: '#e8f1ff' },
-      { id: 'accused', label: 'Matter', sub: form.priority, x: 260, y: 60, color: '#e46f6c', bg: '#fdf0ef' },
-      { id: 'witness', label: 'Counsel', sub: 'Your desk', x: 470, y: 210, color: '#9b70e8', bg: '#f3eeff' },
-      { id: 'incident', label: '⚖ Case', sub: today, x: 260, y: 210, color: '#43b484', bg: '#edf9f3' },
-      { id: 'evidence', label: 'Evidence', sub: '2 files', x: 90, y: 340, color: '#d29b3a', bg: '#fdf6e8' },
-      { id: 'court', label: 'Court', sub: displayDate, x: 430, y: 340, color: '#7c6fcc', bg: '#f0eefe' },
+      { id: 'party', label: 'Party', sub: party, x: 95, y: 130, role: 'victim', info: 'Primary party in the matter. Update details as the case file develops.' },
+      { id: 'accused', label: 'Matter', sub: form.priority, x: 320, y: 80, role: 'suspect', info: `Matter posture: ${form.priority} priority. Update as facts are verified.` },
+      { id: 'witness', label: 'Counsel', sub: 'Your desk', x: 545, y: 130, role: 'witness', info: 'Handling counsel. Track evidence and hearing prep here.' },
+      { id: 'incident', label: 'Case', sub: today, x: 320, y: 240, role: 'incident', info: 'Core matter opened on ' + today + '. Link verified facts to this node.' },
+      { id: 'evidence', label: 'Evidence', sub: '2 files', x: 105, y: 335, role: 'evidence', info: 'Intake notes (draft) and client instructions currently on file.' },
+      { id: 'court', label: 'Court', sub: displayDate, x: 450, y: 350, role: 'location', info: `Next hearing listed for ${displayDate}.` },
     ],
-    edges: [['party', 'incident'], ['accused', 'incident'], ['witness', 'incident'], ['incident', 'evidence'], ['incident', 'court']],
+    edges: [
+      { from: 'party', to: 'incident', label: 'party to' },
+      { from: 'accused', to: 'incident', label: 'posture' },
+      { from: 'witness', to: 'incident', label: 'counsel for' },
+      { from: 'incident', to: 'evidence', label: 'supported by' },
+      { from: 'incident', to: 'court', label: 'listed at' },
+    ],
+    graphTimeline: [
+      { date: today, label: 'Case opened' },
+      { date: displayDate, label: 'Next hearing' },
+    ],
   };
 }
 const PRIORITY_RANK = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -191,19 +236,7 @@ function getShapeForNodeKind(kind: string): 'diamond' | 'circle' | 'square' | 'r
   if (kind === 'evidence') return 'square';
   if (kind === 'court') return 'rect';
   return 'circle';
-}
-
-function getShapeForNode(label: string): 'diamond' | 'circle' | 'circle-green' | 'circle-red' | 'square' | 'rect' {
-  const lower = label.toLowerCase();
-  if (lower.includes('incident') || lower.includes('case') || lower.includes('dispute') || lower.includes('property')) return 'diamond';
-  if (lower.includes('victim') || lower.includes('complainant') || lower.includes('plaintiff')) return 'circle';
-  if (lower.includes('witness') || lower.includes('other')) return 'circle-green';
-  if (lower.includes('accused') || lower.includes('respondent') || lower.includes('suspect') || lower.includes('bank')) return 'circle-red';
-  if (lower.includes('evidence') || lower.includes('records') || lower.includes('documents') || lower.includes('digital')) return 'square';
-  return 'rect';
-}
-
-function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View) => void, flash: (s: string) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void }) {
+}function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View) => void, flash: (s: string) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void }) {
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
   const [graphCaseId, setGraphCaseId] = useState<string>(cases[0]?.id || '');
   const [showNew, setShowNew] = useState(false);
@@ -211,8 +244,6 @@ function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View
   if (selected) return <CaseDetailView caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI} />;
   const activeCase = cases.find(c => c.id === graphCaseId) || cases[0];
   if (!activeCase) return <div className="panel"><p>No cases yet.</p><button className="primary" onClick={() => setShowNew(true)}><Plus />New case</button>{showNew && <NewCaseModal onClose={() => setShowNew(false)} onCreate={c => { onAddCase(c); setGraphCaseId(c.id); }} />}</div>;
-  const { nodes, edges } = activeCase;
-  const getNode = (id: string) => nodes.find(n => n.id === id)!;
   const upcoming = [...cases].sort((a, b) => a.daysLeft - b.daysLeft);
   return <><div className="welcome"><div><em className="gold"><Sparkles />CASE COMMAND CENTER</em><h1>Good morning, <b>Vikas.</b></h1><p>Your practice is moving. Here is what needs your attention.</p></div><button className="primary" onClick={() => setShowNew(true)}><Plus />New case</button></div>
     <div className="stats">{[[Briefcase, String(cases.length).padStart(2, '0'), 'Active cases', 'cases'], [Bell, String(cases.filter(c => c.daysLeft <= 7).length).padStart(2, '0'), 'Upcoming hearings', 'calendar'], [Sparkles, '08', 'AI summaries', 'chat'], [FileText, String(cases.reduce((n, c) => n + c.evidence.length, 0)), 'Verified documents', 'cases']].map(([I, n, t, page]: any, idx) => <div key={idx} className="stat-clickable" role="button" tabIndex={0} onClick={() => go(page)} onKeyDown={e => e.key === 'Enter' && go(page)}><I /><b>{n}</b><small>{t}</small></div>)}</div>
@@ -226,69 +257,7 @@ function LawyerHome({ go, flash, cases, onAddCase, onAskCaseAI }: { go: (v: View
             <button onClick={() => flash('Case graph expanded.')} style={{ marginTop: 0 }}>Expand ↗</button>
           </div>
         </div>
-        <div className="network-svg-wrap">
-          <svg viewBox="0 0 620 430" className="case-svg">
-            <defs>
-              <marker id="arr-solid" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#6a9fd6" /></marker>
-              <marker id="arr-dashed" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#8fadd4" /></marker>
-              <filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            </defs>
-            {edges.map(([a, b], i) => { 
-              const na = getNode(a), nb = getNode(b);
-              const isConfirmed = i < 3; // First 3 edges are confirmed
-              return <line key={i} x1={na.x + 48} y1={na.y + 20} x2={nb.x + 48} y2={nb.y + 20} 
-                stroke={isConfirmed ? "#6a9fd6" : "#8fadd4"} 
-                strokeWidth={isConfirmed ? "2" : "1.5"} 
-                strokeDasharray={isConfirmed ? "none" : "5,3"} 
-                markerEnd={isConfirmed ? "url(#arr-solid)" : "url(#arr-dashed)"} 
-                opacity={isConfirmed ? "0.9" : "0.6"} /> 
-            })}
-            {nodes.map(n => {
-              const shape = getShapeForNode(n.label);
-              return <g key={n.id}>
-                {shape === 'diamond' && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
-                  <polygon points="0,-24 32,0 0,24 -32,0" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
-                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
-                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
-                </g>}
-                {(shape === 'circle' || shape === 'circle-green' || shape === 'circle-red') && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
-                  <circle r="28" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
-                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
-                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
-                </g>}
-                {shape === 'square' && <g transform={`translate(${n.x + 48}, ${n.y + 20})`}>
-                  <rect x="-26" y="-20" width="52" height="40" rx="4" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
-                  <text x="0" y="-5" textAnchor="middle" fontSize="9" fontWeight="700" fill={n.color}>{n.label}</text>
-                  <text x="0" y="8" textAnchor="middle" fontSize="7" fill="#7a8fa8">{n.sub}</text>
-                </g>}
-                {shape === 'rect' && <g>
-                  <rect x={n.x} y={n.y} width="96" height="42" rx="8" fill={n.bg} stroke={n.color} strokeWidth="2" filter="url(#glow)" />
-                  <text x={n.x + 48} y={n.y + 15} textAnchor="middle" fontSize="10" fontWeight="700" fill={n.color}>{n.label}</text>
-                  <text x={n.x + 48} y={n.y + 29} textAnchor="middle" fontSize="8" fill="#7a8fa8">{n.sub}</text>
-                </g>}
-              </g>
-            })}
-          </svg>
-          <div className="graph-legend">
-            <div className="legend-item"><span className="legend-shape diamond"></span><span>Incident/Event</span></div>
-            <div className="legend-item"><span className="legend-shape circle"></span><span>Victim/Complainant</span></div>
-            <div className="legend-item"><span className="legend-shape circle-green"></span><span>Witness/Other</span></div>
-            <div className="legend-item"><span className="legend-shape circle-red"></span><span>Accused/Suspect</span></div>
-            <div className="legend-item"><span className="legend-shape square"></span><span>Evidence/Document</span></div>
-            <div className="legend-item"><span className="legend-shape rect"></span><span>Location</span></div>
-          </div>
-          <div className="graph-key-finding">
-            <strong>Key finding:</strong> Evidence directly links accused to incident location through verified CCTV footage.
-          </div>
-          <div className="graph-timeline">
-            <strong>Timeline:</strong>
-            <div className="timeline-events">
-              <div className="timeline-event"><span className="timeline-date">12 Jan 2024</span><span className="timeline-desc">Incident occurred</span></div>
-              <div className="timeline-event"><span className="timeline-date">13 Jan 2024</span><span className="timeline-desc">FIR filed</span></div>
-              <div className="timeline-event"><span className="timeline-date">15 Jan 2024</span><span className="timeline-desc">Evidence collected</span></div>
-            </div>
-          </div>
-        </div>
+        <CaseGraph key={activeCase.id} caseData={{ id: activeCase.id, title: activeCase.title, description: activeCase.description, nodes: activeCase.nodes, edges: activeCase.edges, timeline: activeCase.graphTimeline }} />
       </section>
       <section className="panel priority"><div className="title"><h3>Priority queue</h3><button onClick={() => go('cases')}>View cases</button></div>
         {[...cases].sort(byPriority).map((c) => <button key={c.id} onClick={() => setSelectedCase(c.id)}><span className={'pq-badge ' + c.priority.toLowerCase()}>{c.priority}</span><div><b>{c.title}</b><small>{c.priority === 'HIGH' ? 'Hearing in ' + c.daysLeft + ' day' + (c.daysLeft === 1 ? '' : 's') : c.priority === 'MEDIUM' ? (c.status === 'Newly Filed' ? 'Newly filed matter' : '2 documents missing') : 'Review due Friday'}</small></div><ChevronRight /></button>)}

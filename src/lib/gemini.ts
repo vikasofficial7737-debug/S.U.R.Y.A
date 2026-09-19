@@ -96,6 +96,19 @@ const mapSchema = {
   required: ['summary', 'caseType', 'priority', 'evidence', 'nodes', 'edges'],
 } as const;
 
+export async function explainCaseNetwork(
+  title: string,
+  nodes: { label: string; role: string; sub?: string }[],
+  edges: { from: string; to: string; label?: string; suspected?: boolean }[],
+): Promise<string> {
+  const listing = nodes.map(n => `- ${n.label} (${n.role}${n.sub ? `: ${n.sub}` : ''})`).join('\n');
+  const links = edges
+    .map(e => `- ${e.from} → ${e.to}${e.label ? ` (${e.label})` : ''}${e.suspected ? ' [suspected / AI-suggested]' : ' [confirmed]'}`)
+    .join('\n');
+  const prompt = `You are looking at a relationship graph extracted from the case "${title}".\n\nNodes:\n${listing}\n\nLinks:\n${links || '(none)'}\n\nIn 2–3 sentences (max 60 words), state the key finding this network reveals: the chain that connects the core parties, the most probative evidence link, and any suspected link that needs verification. State only what the graph shows; do not invent facts. Plain text, no Markdown.`;
+  return generate(prompt);
+}
+
 export async function analyzeCase(title: string, facts: string): Promise<IntelligenceMap> {
   const prompt = `Analyze this legal case only from the supplied text. Create a factual relationship map. Do not add parties, evidence, statutes, or events that are not present or directly inferable.\n\nTitle: ${title}\nFacts: ${facts}\n\nIMPORTANT: Keep all text VERY SHORT. Node labels: max 10 characters. Node details: max 12 characters. Edge labels: max 8 characters. Use simple terms like "Witness", "CCTV", "Report", "Hearing" instead of long descriptions.\n\nReturn exactly one complete JSON object that matches the requested schema: 3–5 uniquely-id'd nodes and at most 6 directed edges. No Markdown or explanation outside the JSON.`;
   for (let attempt = 0; attempt < 3; attempt += 1) {
