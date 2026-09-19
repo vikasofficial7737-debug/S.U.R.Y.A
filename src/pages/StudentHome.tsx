@@ -1,0 +1,7 @@
+import { GraduationCap, ArrowRight, Sparkles } from 'lucide-react';
+import type { View } from '../types';
+
+export function StudentHome({ go, flash }: { go: (v: View) => void, flash: (s: string) => void }) {
+  let topics = ['Criminal Law', 'Constitutional', 'Cyber Law', 'Property Law', 'Contract Law', 'Family Law'];
+  return <><div className="welcome"><div><em className="green"><GraduationCap />YOUR LEGAL LEARNING SPACE</em><h1>Learn the law, <b>clearly.</b></h1><p>Explore landmark cases explained in language that makes sense.</p></div><div className="streak">🔥 <b>7 day streak</b><small>Keep going!</small></div></div><section className="panel"><div className="title"><div><h3>Explore by topic</h3><p>Start with what you are studying</p></div><button onClick={() => go('library')}>All topics <ArrowRight /></button></div><div className="topics">{topics.map((x, i) => <button onClick={() => go('library')} key={x}>⚖<b>{x}</b><small>{12 + i * 7} cases</small></button>)}</div></section><div className="two"><section className="panel reading"><span>CONSTITUTIONAL LAW</span><h2>Kesavananda Bharati<br />v. State of Kerala</h2><p>Understanding the Basic Structure Doctrine</p><button onClick={() => go('library')}>Resume case <ArrowRight /></button></section><section className="panel quiz"><Sparkles /><h3>Test your understanding</h3><p>Try a quick AI-generated quiz from your recent reading.</p><button onClick={() => flash('Quiz started — good luck!')}>Start 5-question quiz <ArrowRight /></button></section></div></>
+}
