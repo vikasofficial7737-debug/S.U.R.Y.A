@@ -9,21 +9,88 @@ import './judgment.css';
 import { JUDGMENTS, CITIZEN_GUIDES, type Judgment, type CitizenGuide } from './data/judgments';
 import { analyzeCase, askGemini, type CaseContext, type IntelligenceMap } from './lib/gemini';
 import { CaseGraph } from './components/CaseGraph';
-type Role = 'citizen' | 'lawyer' | 'student'; type View = 'landing' | 'home' | 'chat' | 'cases' | 'library' | 'lawyers' | 'calendar';
+import { CaseDossier } from './components/CaseDossier';
+import { MyClientsView, MyRequestsView } from './components/ClientRequestViews';
+import { DocumentAnalyzerView } from './components/DocumentAnalyzerView';
+import { SEED_REQUESTS, timestampNow, uid, type ClientRequest, type CaseFileItem } from './data/clientRequests';
+import { CASE_EXTRAS, buildStarterExtras } from './data/caseExtras';
+import { StudentStudies, type StudyRecord, type QuizAttempt } from './components/StudentStudies';
+type Role = 'citizen' | 'lawyer' | 'student'; type View = 'landing' | 'home' | 'chat' | 'cases' | 'library' | 'lawyers' | 'calendar' | 'clients' | 'requests' | 'docs' | 'studies';
 const info = { citizen: { name: 'Citizen', icon: UserRound, color: 'orange', promise: 'Clear legal guidance, when you need it.' }, lawyer: { name: 'Lawyer', icon: BriefcaseBusiness, color: 'blue', promise: 'Organize cases. Work with clarity.' }, student: { name: 'Student', icon: GraduationCap, color: 'green', promise: 'Understand landmark cases, simply.' } } as const;
-const nav = { citizen: [['Home', Home, 'home'], ['Ask S.U.R.Y.A.', Bot, 'chat'], ['Find a Lawyer', Users, 'lawyers'], ['My Legal Steps', Check, 'cases'], ['Know Your Rights', BookOpen, 'library']], lawyer: [['Dashboard', Home, 'home'], ['My Cases', Briefcase, 'cases'], ['AI Case Assistant', Sparkles, 'chat'], ['Judgment Research', BookOpen, 'library'], ['Calendar & Reminders', CalendarDays, 'calendar']], student: [['Study Home', Home, 'home'], ['Case Library', BookOpen, 'library'], ['Ask about a Case', Bot, 'chat'], ['My Notes', FileText, 'cases']] } as const;
+const nav = { citizen: [['Home', Home, 'home'], ['Ask S.U.R.Y.A.', Bot, 'chat'], ['Find a Lawyer', Users, 'lawyers'], ['My Requests', Check, 'requests'], ['Know Your Rights', BookOpen, 'library']], lawyer: [['Dashboard', Home, 'home'], ['My Cases', Briefcase, 'cases'], ['My Clients', Users, 'clients'], ['Document Analyzer', FileText, 'docs'], ['AI Case Assistant', Sparkles, 'chat'], ['Judgment Research', BookOpen, 'library'], ['Calendar & Reminders', CalendarDays, 'calendar']], student: [['Study Home', Home, 'home'], ['Case Library', BookOpen, 'library'], ['My Case Studies', FileText, 'studies'], ['Ask about a Case', Bot, 'chat']] } as const;
 export default function App() {
   const [role, setRole] = useState<Role>('citizen'), [view, setView] = useState<View>('landing'), [dark, setDark] = useState(false), [open, setOpen] = useState(false), [toast, setToast] = useState(''), [aiCaseId, setAiCaseId] = useState<string | undefined>();
   const [cases, setCases] = useState(REAL_CASES);
+  const [requests, setRequests] = useState<ClientRequest[]>(SEED_REQUESTS);
+  const [caseDocs, setCaseDocs] = useState<Record<string, CaseFileItem[]>>({});
+  const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([
+    { judgmentId: 'bacchan-singh', readAt: '16 Sep, 8:12 pm', timesRead: 3 },
+    { judgmentId: 'virsa-singh', readAt: '15 Sep, 9:40 pm', timesRead: 2 },
+    { judgmentId: 'lalita-kumari', readAt: '14 Sep, 7:05 pm', timesRead: 1 },
+  ]);
+  const [quizHistory, setQuizHistory] = useState<QuizAttempt[]>([]);
+  const [librarySelectedId, setLibrarySelectedId] = useState<string | null>(null);
   const flash = (s: string) => { setToast(s); setTimeout(() => setToast(''), 2400) };
+  const baseDocsFor = (caseId: string): CaseFileItem[] =>
+    CASE_EXTRAS[caseId]?.caseFile ?? (() => {
+      const c = cases.find(x => x.id === caseId);
+      return c ? buildStarterExtras(c.title, c.description, c.date, c.priority).caseFile : [];
+    })();
+  const docsForCase = (caseId: string): CaseFileItem[] => caseDocs[caseId] ?? baseDocsFor(caseId);
+  const addCaseDoc = (caseId: string, item: CaseFileItem) => {
+    setCaseDocs(prev => ({ ...prev, [caseId]: [...(prev[caseId] ?? baseDocsFor(caseId)), item] }));
+    flash(`Document “${item.name}” added to the case file.`);
+  };
+  const removeCaseDoc = (caseId: string, docId: string) => {
+    setCaseDocs(prev => ({ ...prev, [caseId]: (prev[caseId] ?? baseDocsFor(caseId)).filter(x => x.id !== docId) }));
+  };
   const addCase = (c: typeof REAL_CASES[0]) => { setCases(prev => [c, ...prev]); flash(`Case “${c.title}” created successfully.`); };
+  const updateRequest = (id: string, patch: Partial<ClientRequest>) => setRequests(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const acceptRequest = (id: string) => { const r = requests.find(x => x.id === id); updateRequest(id, { status: 'accepted', updatedAt: timestampNow(), demoThread: true }); if (r) flash(`Request from ${r.clientName} accepted. The conversation is open in My Clients.`); };
+  const declineRequest = (id: string) => { const r = requests.find(x => x.id === id); updateRequest(id, { status: 'declined', updatedAt: timestampNow() }); if (r) flash(`Request from ${r.clientName} declined.`); };
+  const sendMessage = (requestId: string, text: string, attachments: ClientRequest['messages'][0]['attachments']) => {
+    setRequests(prev => prev.map(r => r.id === requestId
+      ? { ...r, updatedAt: timestampNow(), messages: [...r.messages, { id: uid(), from: role === 'lawyer' ? 'lawyer' : 'client', text, at: timestampNow(), attachments }] }
+      : r));
+  };
+  const sendRequestToLawyer = (lawyerName: string, issue: string, details: string, area: string) => {
+    const req: ClientRequest = {
+      id: uid(),
+      clientName: 'Vikas Singh',
+      clientInitials: 'VS',
+      clientCity: 'Jaipur, Rajasthan',
+      issue, details, area,
+      status: 'pending',
+      createdAt: timestampNow(),
+      updatedAt: timestampNow(),
+      lawyerName,
+      messages: [{ id: uid(), from: 'client', text: details, at: timestampNow(), attachments: [] }],
+    };
+    setRequests(prev => [req, ...prev]);
+    flash(`Request sent to ${lawyerName}. You will be notified when they respond.`);
+    setView('requests');
+  };
   if (view === 'landing') return <Landing role={role} setRole={setRole} start={() => setView('home')} dark={dark} setDark={setDark} />;
   const openCaseAssistant = (caseId?: string) => { setAiCaseId(caseId); setView('chat'); };
-  return <div className={'app role-' + role + ' ' + (dark ? 'dark' : '')}><aside className={open ? 'open' : ''}><div className="brand"><Scale /> <b>S.U.R.Y.A.<small>Judicial assistance, unified</small></b><button className="close" onClick={() => setOpen(false)}><X /></button></div><p className="role-label">{info[role].name} SPACE</p><nav>{nav[role].map(([label, Icon, page]) => <button key={label} className={view === page ? 'active' : ''} onClick={() => { setView(page as View); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-foot"><ShieldCheck />AI assists, it never decides.<button onClick={() => setView('landing')}>Switch profile <ArrowRight /></button></div></aside>{open && <div className="veil" onClick={() => setOpen(false)} />}<main><header><button className="menu" onClick={() => setOpen(true)}><Menu /></button><button className="back-home" onClick={() => setView('home')}><Home /> Dashboard</button><div className="top-search"><Search /><input placeholder="Search cases, laws, documents..." /></div><div className="top-actions"><button><Languages /> EN</button><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button><button onClick={() => flash('You have ' + cases.filter(c => c.daysLeft <= 7).length + ' upcoming reminders.')}><Bell /></button><span>VS</span></div></header><div className="content">{view === 'home' && <HomeView role={role} go={setView} flash={flash} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} />} {view === 'chat' && <GeminiChat role={role} cases={cases} selectedCaseId={aiCaseId} onSelectCase={setAiCaseId} />} {view === 'cases' && <SmartCases role={role} flash={flash} go={setView} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} />} {view === 'calendar' && <CalendarView cases={cases} onAddCase={addCase} go={setView} flash={flash} onAskCaseAI={openCaseAssistant} />} {view === 'library' && <Library role={role} flash={flash} />} {view === 'lawyers' && <SmartLawyers flash={flash} />}</div></main>{toast && <div className="toast"><Check /> {toast}</div>}</div>
+  // A student opening a judgment records it in My Case Studies.
+  const openJudgmentForStudent = (judgmentId: string) => {
+    if (role !== 'student') return;
+    setStudyRecords(prev => {
+      const existing = prev.find(r => r.judgmentId === judgmentId);
+      if (existing) return prev.map(r => r.judgmentId === judgmentId ? { ...r, timesRead: r.timesRead + 1, readAt: timestampNow() } : r);
+      return [{ judgmentId, readAt: timestampNow(), timesRead: 1 }, ...prev];
+    });
+  };
+  const openJudgmentDeep = (judgmentId: string) => {
+    openJudgmentForStudent(judgmentId);
+    setLibrarySelectedId(judgmentId);
+    setView('library');
+  };
+  return <div className={'app role-' + role + ' ' + (dark ? 'dark' : '')}><aside className={open ? 'open' : ''}><div className="brand"><Scale /> <b>S.U.R.Y.A.<small>Judicial assistance, unified</small></b><button className="close" onClick={() => setOpen(false)}><X /></button></div><p className="role-label">{info[role].name} SPACE</p><nav>{nav[role].map(([label, Icon, page]) => <button key={label} className={view === page ? 'active' : ''} onClick={() => { setView(page as View); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-foot"><ShieldCheck />AI assists, it never decides.<button onClick={() => setView('landing')}>Switch profile <ArrowRight /></button></div></aside>{open && <div className="veil" onClick={() => setOpen(false)} />}<main><header><button className="menu" onClick={() => setOpen(true)}><Menu /></button><button className="back-home" onClick={() => setView('home')}><Home /> Dashboard</button><div className="top-search"><Search /><input placeholder="Search cases, laws, documents..." /></div><div className="top-actions"><button title="Language: English (हिन्दी coming soon in this build)" onClick={() => flash('English selected. Hindi interface arrives in the next build — voice input already supports हिन्दी in the assistant.')}><Languages /> EN</button><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button><button onClick={() => flash('You have ' + cases.filter(c => c.daysLeft <= 7).length + ' upcoming reminders.')}><Bell /></button><span>VS</span></div></header><div className="content">{view === 'home' && <HomeView role={role} go={setView} flash={flash} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} />} {view === 'chat' && <GeminiChat role={role} cases={cases} selectedCaseId={aiCaseId} onSelectCase={setAiCaseId} />} {view === 'cases' && <SmartCases role={role} flash={flash} go={setView} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'calendar' && <CalendarView cases={cases} onAddCase={addCase} go={setView} flash={flash} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'library' && <Library role={role} flash={flash} onReadJudgment={openJudgmentForStudent} selectedId={librarySelectedId} setSelectedId={setLibrarySelectedId} />} {view === 'lawyers' && <SmartLawyers flash={flash} onRequest={sendRequestToLawyer} />} {view === 'clients' && <MyClientsView requests={requests} onAccept={acceptRequest} onDecline={declineRequest} onSend={sendMessage} />} {view === 'requests' && <MyRequestsView requests={requests} onSend={sendMessage} onNew={() => setView('lawyers')} />} {view === 'docs' && <DocumentAnalyzerView cases={cases} flash={flash} />} {view === 'studies' && <StudentStudies records={studyRecords} history={quizHistory} onClearHistory={() => setQuizHistory([])} onRecordQuiz={a => setQuizHistory(prev => [a, ...prev])} onOpenJudgment={id => { setView('studies'); openJudgmentDeep(id); }} />}</div></main>{toast && <div className="toast"><Check /> {toast}</div>}</div>
 }
 function Landing({ role, setRole, start, dark, setDark }: { role: Role, setRole: (r: Role) => void, start: () => void, dark: boolean, setDark: (b: boolean) => void }) { return <div className={'landing ' + (dark ? 'dark' : '')}><div className="tricolor"><i /><i /><i /></div><header><div className="brand"><Scale /><b>S.U.R.Y.A.<small>Smart Unified Resource for Judicial Assistance</small></b></div><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button></header><section className="landing-hero"><div className="chakra">☸</div><span>WELCOME TO</span><h1>S.U.R.Y.A.</h1><div className="flagline"><i /><i /><i /></div><p>AI-based legal and judicial support platform</p><p className="intro">Legal support becomes clearer, organized, and more accessible — for every citizen, lawyer, and student.</p></section><div className="role-cards">{(Object.keys(info) as Role[]).map(r => { const d = info[r], Icon = d.icon; return <article className={'role-card ' + d.color + (role === r ? ' picked' : '')} key={r} onClick={() => setRole(r)}><div className="illustration"><Icon /><div>⚖</div></div><h2>I am a {d.name}</h2><p>{d.promise}</p><ul>{r === 'citizen' ? <><li>AI legal guidance</li><li>Find verified lawyers</li></> : r === 'lawyer' ? <><li>Intelligent case workspace</li><li>Private document analysis</li></> : <><li>Simple case summaries</li><li>Learn at your own pace</li></>}</ul><button onClick={start}>Continue <ArrowRight /></button></article> })}</div><footer><span><ShieldCheck /> AI provides assistance, not legal advice.</span><span>English · हिन्दी</span></footer></div> }
 function HomeView({ role, go, flash, cases, onAddCase, onAskCaseAI }: { role: Role, go: (v: View) => void, flash: (s: string) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void }) { if (role === 'lawyer') return <LawyerHome go={go} flash={flash} cases={cases} onAddCase={onAddCase} onAskCaseAI={onAskCaseAI} />; if (role === 'student') return <StudentHome go={go} flash={flash} />; return <CitizenHome go={go} flash={flash} /> }
-function CitizenHome({ go, flash }: { go: (v: View) => void, flash: (s: string) => void }) { let situations = ['Theft or lost item', 'Online fraud', 'Cybercrime', 'Property dispute', 'Consumer issue', 'Family matter']; return <><div className="welcome"><div><em><Sparkles />YOUR LEGAL COMPANION</em><h1>Hello, Vikas <b>✦</b></h1><p>Tell us what happened. We will guide you through the next steps.</p></div><blockquote>“Justice is not just for the few, but for every citizen.”</blockquote></div><div className="split"><section className="panel"><h3><Bot /> How can we help today?</h3><p>Choose a situation or ask in your own words.</p><div className="situations">{situations.map((x, i) => <button onClick={() => go('chat')} key={x}><span>{['◈', '⌁', '◉', '⌂', '◌', '♡'][i]}</span>{x}<ChevronRight /></button>)}</div><button className="ask" onClick={() => go('chat')}><Search />Describe your situation in your own words...<ArrowRight /></button></section><section className="panel steps"><div className="title"><h3>My Legal Steps</h3><button onClick={() => go('cases')}>View all <ArrowRight /></button></div><b>Phone theft report</b><p>3 of 5 steps completed</p><div className="bar"><i /></div>{['File a police complaint', 'Block your SIM card', 'Submit a CEIR request'].map((x, i) => <div className="step" key={x}><span>{i < 2 ? <Check /> : i + 1}</span>{x}</div>)}</section></div><div className="two"><section className="panel"><div className="title"><div><h3>Find the right lawyer</h3><p>Verified specialists near you</p></div><button onClick={() => go('lawyers')}>See all <ArrowRight /></button></div>{['Adv. Priya Sharma — Family Law', 'Adv. Arjun Mehta — Cyber Law', 'Adv. Neha Joshi — Property Law'].map((x, i) => <div className="person" key={x}><i>{['PS', 'AM', 'NJ'][i]}</i><div><b>{x}</b><small>★ 4.{9 - i} · {8 + i} years experience</small></div><button onClick={() => flash('Consultation request sent!')}>Connect</button></div>)}</section><section className="panel rights"><div className="title"><h3>Know your rights</h3><button onClick={() => go('library')}>Explore <ArrowRight /></button></div>{['How to file an FIR', 'What is a legal notice?', 'Online fraud: your immediate rights'].map(x => <button className="line" onClick={() => go('library')} key={x}>⚖ {x}<ChevronRight /></button>)}</section></div></> }
+function CitizenHome({ go, flash }: { go: (v: View) => void, flash: (s: string) => void }) { let situations = ['Theft or lost item', 'Online fraud', 'Cybercrime', 'Property dispute', 'Consumer issue', 'Family matter']; return <><div className="welcome"><div><em><Sparkles />YOUR LEGAL COMPANION</em><h1>Hello, Vikas <b>✦</b></h1><p>Tell us what happened. We will guide you through the next steps.</p></div><blockquote>“Justice is not just for the few, but for every citizen.”</blockquote></div><div className="split"><section className="panel"><h3><Bot /> How can we help today?</h3><p>Choose a situation or ask in your own words.</p><div className="situations">{situations.map((x, i) => <button onClick={() => go('chat')} key={x}><span>{['◈', '⌁', '◉', '⌂', '◌', '♡'][i]}</span>{x}<ChevronRight /></button>)}</div><button className="ask" onClick={() => go('chat')}><Search />Describe your situation in your own words...<ArrowRight /></button></section><section className="panel steps"><div className="title"><h3>My Legal Steps</h3><button onClick={() => go('cases')}>View all <ArrowRight /></button></div><b>Phone theft report</b><p>3 of 5 steps completed</p><div className="bar"><i /></div>{['File a police complaint', 'Block your SIM card', 'Submit a CEIR request'].map((x, i) => <div className="step" key={x}><span>{i < 2 ? <Check /> : i + 1}</span>{x}</div>)}</section></div><div className="two"><section className="panel"><div className="title"><div><h3>Find the right lawyer</h3><p>Verified specialists near you</p></div><button onClick={() => go('lawyers')}>See all <ArrowRight /></button></div>{['Adv. Priya Sharma — Family Law', 'Adv. Arjun Mehta — Cyber Law', 'Adv. Neha Joshi — Property Law'].map((x, i) => <div className="person" key={x}><i>{['PS', 'AM', 'NJ'][i]}</i><div><b>{x}</b><small>★ 4.{9 - i} · {8 + i} years experience</small></div><button onClick={() => flash('Consultation request sent!')}>Connect</button></div>)}</section><section className="panel rights"><div className="title"><h3>Know your rights</h3><button onClick={() => go('library')}>Explore <ArrowRight /></button></div>{['How to file an FIR', 'What is a legal notice?', 'Online fraud: your immediate rights'].map(x => <button className="line" onClick={() => go('library')} key={x}>⚖ {x}<ChevronRight /></button>)}</section></div><section className="panel helplines"><div className="title"><h3>Emergency &amp; helpline numbers</h3><small>Tap to call · available 24×7</small></div><div className="help-grid">{[['112', 'National emergency (police · fire · medical)'], ['100', 'Police control room'], ['181', 'Women helpline'], ['1098', 'Childline (CHILDLINE India)'], ['1930', 'Cyber & financial fraud'], ['14567', 'Senior citizen helpline']].map(([num, label]) => <a className="help-num" key={num} href={'tel:' + num}><b>{num}</b><small>{label}</small></a>)}</div></section></> }
 const REAL_CASES = [
   {
     id: 'state-singh', title: 'State vs. R. Singh', ipc: 'IPC 302 – Murder', court: 'Sessions Court, Jaipur', date: '20 Sep 2026', daysLeft: 1, priority: 'HIGH', judge: 'Hon. Justice A.K. Mehta', status: 'Trial in Progress',
@@ -206,30 +273,6 @@ function NewCaseModal({ onClose, onCreate }: { onClose: () => void, onCreate: (c
   );
 }
 
-function CaseDetailView({ caseData, onBack, onAskAI }: { caseData: CaseRecord, onBack: () => void, onAskAI?: (caseId: string) => void }) {
-  const c = caseData;
-  const hearingEvents = c.timeline.filter(item => /hearing|exam|argument|evidence|review|judgment/i.test(item.label));
-  const currentHearing = hearingEvents.find(item => item.active) || hearingEvents.find(item => !item.done);
-  return <div className="case-detail-view">
-    <button className="back-btn" onClick={onBack}>← Back to Dashboard</button>
-    <div className="cdv-header">
-      <div><span className={'cdv-badge priority-' + c.priority.toLowerCase()}>{c.priority}</span><h2>{c.title}</h2><p>{c.ipc} · {c.court}</p></div>
-      <div className="cdv-meta"><span>📅 Next Hearing: <b>{c.date}</b></span><span>⚖ Judge: <b>{c.judge}</b></span><span>📌 Status: <b>{c.status}</b></span></div>
-    </div>
-    <div className="cdv-grid">
-      <div className="cdv-left">
-        <section className="panel"><h3>Case Description</h3><p className="cdv-desc">{c.description}</p></section>
-        <section className="panel cdv-evidence"><h3>Evidence &amp; Documents</h3><ul>{c.evidence.map((e, i) => <li key={i}><Check />{e}</li>)}</ul></section>
-        <section className="panel cdv-timeline-wrap"><h3>Case Timeline</h3><div className="cdv-timeline">{c.timeline.map((t, i) => <div key={i} className={'ctl-item' + (t.done ? ' done' : '') + (t.active ? ' active' : '')}><div className="ctl-dot" /><div className="ctl-info"><b>{t.label}</b><small>{t.date}</small></div>{i < c.timeline.length - 1 && <div className="ctl-line" />}</div>)}</div></section>
-        <section className="panel hearing-history"><div className="title"><div><h3>Hearing History</h3><p>Records from this case workspace</p></div><span className="hearing-count">{hearingEvents.length} listed</span></div>{hearingEvents.length ? <div className="hearing-records">{hearingEvents.map((hearing, index) => <article key={hearing.label + hearing.date} className={hearing.active ? 'current' : hearing.done ? 'completed' : 'upcoming'}><span>{hearing.active ? 'CURRENT' : hearing.done ? 'PREVIOUS' : 'UPCOMING'}</span><div><b>{hearing.label}</b><p>{hearing.date} · {c.court}</p>{hearing.active && <small>Next listed hearing for this case</small>}</div><strong>#{index + 1}</strong></article>)}</div> : <p className="hearing-empty">No hearing records have been added to this case yet.</p>}<small className="record-note">Add only dates and outcomes verified from the court record or advocate’s case file.</small></section>
-      </div>
-      <div className="cdv-right">
-        <section className="panel cdv-chart-panel hearing-graph"><h3>Hearing Progress Map</h3><p>Procedural progression from the case record</p>{hearingEvents.length ? <svg viewBox="0 0 460 210" role="img" aria-label="Hearing progression graph"><defs><linearGradient id="hearing-line" x1="0" x2="1"><stop stopColor="#2875e8" /><stop offset="1" stopColor="#43b484" /></linearGradient></defs><line x1="35" y1="105" x2="425" y2="105" stroke="#d8e2ee" strokeWidth="3" strokeDasharray="6 5" />{hearingEvents.map((hearing, index) => { const x = hearingEvents.length === 1 ? 230 : 35 + (390 / (hearingEvents.length - 1)) * index; const color = hearing.active ? '#e46f6c' : hearing.done ? '#43b484' : '#d29b3a'; return <g key={hearing.label + hearing.date}><circle cx={x} cy="105" r={hearing.active ? "14" : "10"} fill="#fff" stroke={color} strokeWidth="4" /><circle cx={x} cy="105" r="4" fill={color} /><text x={x} y="62" textAnchor="middle" fontSize="10" fontWeight="700" fill={color}>{hearing.active ? 'CURRENT' : hearing.done ? 'HEARD' : 'NEXT'}</text><text x={x} y="142" textAnchor="middle" fontSize="9" fill="#52677f">{hearing.date}</text><text x={x} y="160" textAnchor="middle" fontSize="9" fontWeight="600" fill="#243a55">{hearing.label.slice(0, 17)}</text></g>; })}</svg> : <div className="hearing-graph-empty">Add verified hearing entries to visualize the case’s progress.</div>}<div className="hearing-legend"><span><i className="done" />Previous</span><span><i className="active" />Current</span><span><i className="next" />Upcoming</span></div></section>
-        <section className="panel cdv-ai"><Bot /><h3>AI Case Brief</h3><p>S.U.R.Y.A. can prepare a hearing brief, find related precedents, or summarize the evidence for this case.</p><button className="ask" style={{ marginTop: '12px' }} onClick={() => onAskAI?.(c.id)}><Search />Ask about this case<ArrowRight /></button></section>
-      </div>
-    </div>
-  </div>
-}
 function getShapeForNodeKind(kind: string): 'diamond' | 'circle' | 'square' | 'rect' {
   if (kind === 'case' || kind === 'event') return 'diamond';
   if (kind === 'party') return 'circle-red';
@@ -241,7 +284,7 @@ function getShapeForNodeKind(kind: string): 'diamond' | 'circle' | 'square' | 'r
   const [graphCaseId, setGraphCaseId] = useState<string>(cases[0]?.id || '');
   const [showNew, setShowNew] = useState(false);
   const selected = cases.find(c => c.id === selectedCase);
-  if (selected) return <CaseDetailView caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI} />;
+  if (selected) return <CaseDossier caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI} docs={docsFor?.(selected.id)} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc} />;
   const activeCase = cases.find(c => c.id === graphCaseId) || cases[0];
   if (!activeCase) return <div className="panel"><p>No cases yet.</p><button className="primary" onClick={() => setShowNew(true)}><Plus />New case</button>{showNew && <NewCaseModal onClose={() => setShowNew(false)} onCreate={c => { onAddCase(c); setGraphCaseId(c.id); }} />}</div>;
   const upcoming = [...cases].sort((a, b) => a.daysLeft - b.daysLeft);
@@ -287,7 +330,7 @@ function getShapeForNodeKind(kind: string): 'diamond' | 'circle' | 'square' | 'r
     {showNew && <NewCaseModal onClose={() => setShowNew(false)} onCreate={c => { onAddCase(c); setGraphCaseId(c.id); }} />}
   </>
 }
-function StudentHome({ go, flash }: { go: (v: View) => void, flash: (s: string) => void }) { let topics = ['Criminal Law', 'Constitutional', 'Cyber Law', 'Property Law', 'Contract Law', 'Family Law']; return <><div className="welcome"><div><em className="green"><GraduationCap />YOUR LEGAL LEARNING SPACE</em><h1>Learn the law, <b>clearly.</b></h1><p>Explore landmark cases explained in language that makes sense.</p></div><div className="streak">🔥 <b>7 day streak</b><small>Keep going!</small></div></div><section className="panel"><div className="title"><div><h3>Explore by topic</h3><p>Start with what you are studying</p></div><button onClick={() => go('library')}>All topics <ArrowRight /></button></div><div className="topics">{topics.map((x, i) => <button onClick={() => go('library')} key={x}>⚖<b>{x}</b><small>{12 + i * 7} cases</small></button>)}</div></section><div className="two"><section className="panel reading"><span>CONSTITUTIONAL LAW</span><h2>Kesavananda Bharati<br />v. State of Kerala</h2><p>Understanding the Basic Structure Doctrine</p><button onClick={() => go('library')}>Resume case <ArrowRight /></button></section><section className="panel quiz"><Sparkles /><h3>Test your understanding</h3><p>Try a quick AI-generated quiz from your recent reading.</p><button onClick={() => go('chat')}>Start 5-question quiz <ArrowRight /></button></section></div></> }
+function StudentHome({ go, flash }: { go: (v: View) => void, flash: (s: string) => void }) { let topics = ['Criminal Law', 'Constitutional', 'Cyber Law', 'Property Law', 'Contract Law', 'Family Law']; return <><div className="welcome"><div><em className="green"><GraduationCap />YOUR LEGAL LEARNING SPACE</em><h1>Learn the law, <b>clearly.</b></h1><p>Explore landmark cases explained in language that makes sense.</p></div><div className="streak">🔥 <b>7 day streak</b><small>Keep going!</small></div></div><section className="panel"><div className="title"><div><h3>Explore by topic</h3><p>Start with what you are studying</p></div><button onClick={() => go('library')}>All topics <ArrowRight /></button></div><div className="topics">{topics.map((x, i) => <button onClick={() => go('library')} key={x}>⚖<b>{x}</b><small>{12 + i * 7} cases</small></button>)}</div></section><div className="two"><section className="panel reading"><span>CONSTITUTIONAL LAW</span><h2>Kesavananda Bharati<br />v. State of Kerala</h2><p>Understanding the Basic Structure Doctrine</p><button onClick={() => go('library')}>Resume case <ArrowRight /></button></section><section className="panel quiz"><Sparkles /><h3>Test your understanding</h3><p>Pick the cases you have studied and take an AI-generated quiz on the important points. Scores are saved so you can watch them climb.</p><button onClick={() => go('studies')}>Start a quiz from My Case Studies <ArrowRight /></button></section></div></> }
 type Help = { title: string; now: string[]; docs: string[]; where: string; source: string };
 function legalHelp(text: string): Help { let q = text.toLowerCase(); if (/phone|mobile|stolen|theft|lost/.test(q)) return { title: 'Phone theft or loss', now: ['Call your mobile operator to block the SIM.', 'File a police complaint with the place and time of loss.', 'Use the CEIR portal to request blocking of the device IMEI.'], docs: ['Government ID proof', 'Mobile number and IMEI / purchase invoice', 'Copy of police complaint'], where: 'Nearest police station, then the CEIR portal', source: 'CEIR / Department of Telecommunications' }; if (/fraud|upi|bank|scam|money|transaction/.test(q)) return { title: 'Online financial fraud', now: ['Call 1930 immediately to report the transaction.', 'Contact your bank or payment provider and request a freeze.', 'Preserve screenshots, transaction IDs, messages and call records.'], docs: ['Transaction ID and bank details', 'Screenshots / chats / URLs', 'Identity proof'], where: '1930 cyber fraud helpline and cybercrime.gov.in', source: 'National Cyber Crime Reporting Portal' }; if (/cyber|instagram|facebook|harass|blackmail/.test(q)) return { title: 'Cybercrime report', now: ['Do not delete messages, URLs, or screenshots.', 'Use the National Cyber Crime Reporting Portal.', 'If you feel unsafe, contact local police immediately.'], docs: ['Screenshots and profile links', 'Device / account details', 'Identity proof'], where: 'cybercrime.gov.in or your local cyber cell', source: 'National Cyber Crime Reporting Portal' }; if (/property|land|tenant|rent|house/.test(q)) return { title: 'Property or tenancy concern', now: ['Collect agreements, receipts, notices and ownership records.', 'Write down a timeline of events and all parties involved.', 'Consider a legal-aid clinic or property lawyer for document review.'], docs: ['Sale deed / rent agreement', 'Tax receipts and notices', 'Communication records'], where: 'District Legal Services Authority or a property-law specialist', source: 'National Legal Services Authority' }; return { title: 'General legal guidance', now: ['Write down a clear timeline of what happened.', 'Keep originals and copies of all messages and documents.', 'Use the relevant official authority or consult a qualified lawyer for advice specific to your facts.'], docs: ['Identity proof', 'Written timeline', 'Relevant notices, receipts, or communications'], where: 'Relevant local authority or District Legal Services Authority', source: 'National Legal Services Authority' } }
 function SmartChat({ role }: { role: Role }) { const [text, setText] = useState(''), [question, setQuestion] = useState(''), [loading, setLoading] = useState(false), [listening, setListening] = useState(false), [voiceLang, setVoiceLang] = useState<'en-IN' | 'hi-IN'>('en-IN'); const help = question ? legalHelp(question) : null; const send = () => { if (!text.trim()) return; setLoading(true); setTimeout(() => { setQuestion(text); setText(''); setLoading(false) }, 550) }; const voice = () => { const Speech = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition; if (!Speech) { alert('Voice input is supported in Chrome and Microsoft Edge.'); return } const r = new Speech(); r.lang = voiceLang; r.interimResults = true; setListening(true); r.onresult = (e: any) => setText(e.results[0][0].transcript); r.onerror = () => setListening(false); r.onend = () => setListening(false); r.start() }; const prompts = role === 'lawyer' ? ['Summarize the main arguments in this case', 'What evidence should I verify first?', 'Create a hearing preparation checklist'] : voiceLang === 'hi-IN' ? ['मेरा फोन चोरी हो गया है', 'मेरे साथ UPI फ्रॉड हुआ है', 'FIR क्या होती है?'] : ['My phone was stolen. What should I do?', 'I lost money in an online UPI fraud', 'What does an FIR mean?']; return <><div className="chat-head"><Bot /><div><em>S.U.R.Y.A. AI ASSISTANT · DEMO MODE</em><h1>{role === 'lawyer' ? 'Your case intelligence partner' : 'Describe your situation in your own words'}</h1><p>Answers are organized into practical next steps, documents, and reporting channels.</p></div></div><div className="smart-chat"><section className="panel chat-workspace">{!help && !loading && <div className="empty-ai"><Sparkles /><h2>What happened?</h2><p>Try a real-life scenario for the presentation. The assistant will classify it and prepare a guidance plan.</p></div>}{loading && <div className="thinking"><Sparkles /> S.U.R.Y.A. is organizing your legal guidance…</div>}{help && <div className="help-result"><div className="result-top"><span>AI CLASSIFICATION</span><h2>{help.title}</h2><small>Confidence: High · Based on keywords in your description</small></div><div className="result-grid"><article><b>1. What to do now</b>{help.now.map(x => <p key={x}><Check />{x}</p>)}</article><article><b>2. Documents to keep</b>{help.docs.map(x => <p key={x}><FileText />{x}</p>)}</article></div><div className="report-channel"><MapPin /><div><b>Where to report</b><p>{help.where}</p><small>Source: {help.source}</small></div><button onClick={() => window.print()}>Print plan</button></div><div className="disclaimer"><ShieldCheck />This is general information, not legal advice. A qualified professional should assess your specific situation.</div></div>}</section><aside className="prompt-panel"><h3>Presentation prompts</h3>{prompts.map(x => <button onClick={() => setText(x)} key={x}>{x}<ChevronRight /></button>)}<div><ShieldCheck /><b>Privacy-first</b><p>Demo data stays in your browser. Do not enter sensitive personal information.</p></div></aside></div><div className="composer"><button className="voice-language" title="Switch voice language" onClick={() => setVoiceLang(voiceLang === 'en-IN' ? 'hi-IN' : 'en-IN')}>{voiceLang === 'en-IN' ? 'EN' : 'हि'}</button><button className={'voice ' + (listening ? 'listening' : '')} title={'Speak in ' + (voiceLang === 'en-IN' ? 'English' : 'Hindi')} onClick={voice}><Mic /></button><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={listening ? (voiceLang === 'hi-IN' ? 'सुन रहा हूँ… बोलिए' : 'Listening… speak now') : role === 'lawyer' ? 'Ask about evidence, precedents, or hearing prep...' : (voiceLang === 'hi-IN' ? 'उदाहरण: मेरा फोन जयपुर में चोरी हो गया' : 'Example: My phone was stolen yesterday in Jaipur...')} /><button onClick={send}><Send /></button></div></> }
@@ -312,13 +355,17 @@ function GeminiChat({ role, cases, selectedCaseId, onSelectCase }: { role: Role,
     } finally { setLoading(false); }
   };
   const voice = () => { const Speech = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition; if (!Speech) { alert('Voice input is supported in Chrome and Microsoft Edge.'); return; } const r = new Speech(); r.lang = voiceLang; r.interimResults = true; setListening(true); r.onresult = (e: any) => setText(e.results[0][0].transcript); r.onerror = () => setListening(false); r.onend = () => setListening(false); r.start(); };
-  const prompts = role === 'lawyer' ? ['Summarize this case', 'What evidence should I verify first?', 'Create a hearing preparation checklist'] : ['My phone was stolen. What should I do?', 'I lost money in an online UPI fraud', 'What does an FIR mean?'];
+  const prompts = role === 'lawyer'
+    ? ['Summarize this case', 'What evidence should I verify first?', 'Create a hearing preparation checklist']
+    : role === 'student'
+      ? ['I want to study the top murder cases', 'Show me landmark cases about privacy', 'Which cases deal with electronic evidence?', 'Suggest cases to study on criminal procedure']
+      : ['My phone was stolen. What should I do?', 'I lost money in an online UPI fraud', 'What does an FIR mean?'];
   const selected = cases.find(c => c.id === selectedCaseId);
   return <><div className="chat-head"><Bot /><div><em>S.U.R.Y.A. AI ASSISTANT · CHATBOT</em><h1>{role === 'lawyer' ? 'Your case intelligence partner' : 'Describe your situation in your own words'}</h1><p>{role === 'lawyer' && selected ? `Asking about: ${selected.title}` : 'Chatbot-generated information should be reviewed by a legal professional.'}</p></div></div><div className="smart-chat"><section className="panel chat-workspace">{messages.length === 0 && !loading && <div className="empty-ai"><Sparkles /><h2>How can I help?</h2><p>{role === 'lawyer' ? 'Ask about the selected case, evidence, a hearing, or all of your case records.' : 'Ask a legal-information question in your own words.'}</p></div>}<div className="chat-messages">{messages.map((message, index) => <article className={'chat-message ' + message.role} key={index}><b>{message.role === 'user' ? 'You' : 'S.U.R.Y.A.'}</b><p>{message.text}</p></article>)}{loading && <div className="thinking"><Sparkles /> The chatbot is preparing your response…</div>}</div></section><aside className="prompt-panel">{role === 'lawyer' && <label className="case-context"><b>Case context</b><select value={selectedCaseId || ''} onChange={e => onSelectCase(e.target.value || undefined)}><option value="">All my cases</option>{cases.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>}<h3>Try asking</h3>{prompts.map(x => <button onClick={() => setText(x)} key={x}>{x}<ChevronRight /></button>)}<div><ShieldCheck /><b>Privacy-first</b><p>Do not enter sensitive personal information. Chatbot responses are assistance, not legal advice.</p></div></aside></div><div className="composer"><button className="voice-language" title="Switch voice language" onClick={() => setVoiceLang(voiceLang === 'en-IN' ? 'hi-IN' : 'en-IN')}>{voiceLang === 'en-IN' ? 'EN' : 'हि'}</button><button className={'voice ' + (listening ? 'listening' : '')} title="Voice input" onClick={voice}><Mic /></button><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={listening ? 'Listening… speak now' : role === 'lawyer' ? 'Ask about this case, all your cases, evidence, or hearing prep...' : 'Ask S.U.R.Y.A. anything...'} /><button disabled={loading} onClick={send}><Send /></button></div></>;
 }
-function SmartCases({ role, flash, go, cases, onAddCase, onAskCaseAI }: { role: Role, flash: (x: string) => void, go: (v: View) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void }) {
+function SmartCases({ role, flash, go, cases, onAddCase, onAskCaseAI, docsFor, onAddDoc, onRemoveDoc }: { role: Role, flash: (x: string) => void, go: (v: View) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void, docsFor: (caseId: string) => CaseFileItem[], onAddDoc: (caseId: string, item: CaseFileItem) => void, onRemoveDoc: (caseId: string, docId: string) => void }) {
   if (role !== 'lawyer') return <Cases role={role} flash={flash} go={go} cases={cases} onAddCase={onAddCase} />;
-  return <><div className="heading"><div><em>AI CASE ANALYSIS WORKSPACE</em><h1>Generate a case intelligence map</h1><p>The chatbot extracts facts, relationships, evidence and priority from the supplied case text.</p></div></div><GeminiCaseAnalyzer flash={flash} /><Cases role={role} flash={flash} go={go} cases={cases} onAddCase={onAddCase} onAskCaseAI={onAskCaseAI} /></>
+  return <><div className="heading"><div><em>AI CASE ANALYSIS WORKSPACE</em><h1>Generate a case intelligence map</h1><p>The chatbot extracts facts, relationships, evidence and priority from the supplied case text.</p></div></div><GeminiCaseAnalyzer flash={flash} /><Cases role={role} flash={flash} go={go} cases={cases} onAddCase={onAddCase} onAskCaseAI={onAskCaseAI} docsFor={docsFor} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc} /></>
 }
 function GeminiCaseAnalyzer({ flash }: { flash: (x: string) => void }) {
   const [title, setTitle] = useState('State vs. R. Singh');
@@ -572,12 +619,12 @@ function CaseAnalyzer({ flash }: { flash: (x: string) => void }) {
     </section>
   );
 }
-function Cases({ role, flash, go, cases = [], onAddCase, onAskCaseAI }: { role: Role, flash: (x: string) => void, go?: (v: View) => void, cases?: CaseRecord[], onAddCase?: (c: CaseRecord) => void, onAskCaseAI?: (caseId?: string) => void }) {
+function Cases({ role, flash, go, cases = [], onAddCase, onAskCaseAI, docsFor, onAddDoc, onRemoveDoc }: { role: Role, flash: (x: string) => void, go?: (v: View) => void, cases?: CaseRecord[], onAddCase?: (c: CaseRecord) => void, onAskCaseAI?: (caseId?: string) => void, docsFor?: (caseId: string) => CaseFileItem[], onAddDoc?: (caseId: string, item: CaseFileItem) => void, onRemoveDoc?: (caseId: string, docId: string) => void }) {
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [search, setSearch] = useState('');
   const selected = cases.find(c => c.id === selectedCase);
-  if (role === 'lawyer' && selected) return <CaseDetailView caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI || (() => go?.('chat'))} />;
+  if (role === 'lawyer' && selected) return <CaseDossier caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI || (() => go?.('chat'))} docs={docsFor?.(selected.id)} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc} />;
   let list = role === 'lawyer'
     ? [...cases].sort(byPriority).filter(c => !search.trim() || (c.title + c.status + c.ipc).toLowerCase().includes(search.toLowerCase())).map(c => ({ id: c.id, name: c.title, sub: 'Confidential case workspace', status: c.status }))
     : (role === 'citizen' ? ['Phone theft report', 'Consumer complaint', 'Property documentation'] : ['Constitutional law notes', 'Criminal law collection', 'Cybercrime research']).map((n, i) => ({ id: n, name: n, sub: 'Saved for later', status: i === 0 ? 'In progress' : i === 1 ? 'Review needed' : 'Saved' }));
@@ -592,11 +639,11 @@ function Cases({ role, flash, go, cases = [], onAddCase, onAskCaseAI }: { role: 
     {showNew && onAddCase && <NewCaseModal onClose={() => setShowNew(false)} onCreate={c => { onAddCase(c); setSelectedCase(c.id); }} />}
   </>
 }
-function CalendarView({ cases, onAddCase, go, flash, onAskCaseAI }: { cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, go: (v: View) => void, flash: (s: string) => void, onAskCaseAI: (caseId?: string) => void }) {
+function CalendarView({ cases, onAddCase, go, flash, onAskCaseAI, docsFor, onAddDoc, onRemoveDoc }: { cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, go: (v: View) => void, flash: (s: string) => void, onAskCaseAI: (caseId?: string) => void, docsFor: (caseId: string) => CaseFileItem[], onAddDoc: (caseId: string, item: CaseFileItem) => void, onRemoveDoc: (caseId: string, docId: string) => void }) {
   const [showNew, setShowNew] = useState(false);
   const [selectedCase, setSelectedCase] = useState<string | null>(null);
   const selected = cases.find(c => c.id === selectedCase);
-  if (selected) return <CaseDetailView caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI} />;
+  if (selected) return <CaseDossier caseData={selected} onBack={() => setSelectedCase(null)} onAskAI={onAskCaseAI} docs={docsFor(selected.id)} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc} />;
   const upcoming = [...cases].sort((a, b) => a.daysLeft - b.daysLeft);
   const reminders = upcoming.filter(c => c.daysLeft <= 14);
   return <>
@@ -634,7 +681,7 @@ function CalendarView({ cases, onAddCase, go, flash, onAskCaseAI }: { cases: Cas
 function matchJudgment(j: Judgment, q: string) {
   if (!q.trim()) return true;
   const s = q.toLowerCase();
-  return [j.title, j.shortTitle, j.citation, j.court, j.area, j.bench, j.summary, String(j.year), ...j.tags, ...j.statutes].join(' ').toLowerCase().includes(s);
+  return [j.title, j.shortTitle, j.citation, j.court, j.area, j.bench, j.summary, String(j.year), j.domain, ...j.tags, ...j.statutes].join(' ').toLowerCase().includes(s);
 }
 function matchGuide(g: CitizenGuide, q: string) {
   if (!q.trim()) return true;
@@ -698,9 +745,11 @@ function GuideDetailPage({ guide, onBack }: { guide: CitizenGuide, onBack: () =>
     </div>
   );
 }
-function Library({ role, flash }: { role: Role, flash: (x: string) => void }) {
+function Library({ role, flash, onReadJudgment, selectedId, setSelectedId }: { role: Role, flash: (x: string) => void, onReadJudgment?: (judgmentId: string) => void, selectedId: string | null, setSelectedId: (id: string | null) => void }) {
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [domain, setDomain] = useState('All');
+  const [year, setYear] = useState('Any');
+  const [court, setCourt] = useState('All');
   const isCitizen = role === 'citizen';
   const runSearch = () => flash(query.trim() ? `Showing results for “${query.trim()}”` : 'Showing all records');
 
@@ -713,8 +762,17 @@ function Library({ role, flash }: { role: Role, flash: (x: string) => void }) {
     if (g) return <GuideDetailPage guide={g} onBack={() => setSelectedId(null)} />;
   }
 
-  const judgments = JUDGMENTS.filter(j => matchJudgment(j, query));
+  const domains = ['All', ...Array.from(new Set(JUDGMENTS.map(j => j.domain)))];
+  const years = ['Any', ...Array.from(new Set(JUDGMENTS.map(j => j.year))).sort((a, b) => b - a).map(String)];
+  const courts = ['All', ...Array.from(new Set(JUDGMENTS.map(j => j.court)))];
+  const judgments = JUDGMENTS.filter(j =>
+    matchJudgment(j, query)
+    && (domain === 'All' || j.domain === domain)
+    && (year === 'Any' || String(j.year) === year)
+    && (court === 'All' || j.court === court));
   const guides = CITIZEN_GUIDES.filter(g => matchGuide(g, query));
+  const hasFilters = domain !== 'All' || year !== 'Any' || court !== 'All';
+  const filterSummary = [domain !== 'All' ? domain : null, year !== 'Any' ? year : null, court !== 'All' ? court : null].filter(Boolean).join(' · ');
   const heading = role === 'lawyer'
     ? { em: 'JUDGMENT RESEARCH', h1: 'Landmark judgments', p: 'Search authentic Supreme Court authorities with structured case briefs.' }
     : role === 'student'
@@ -735,18 +793,36 @@ function Library({ role, flash }: { role: Role, flash: (x: string) => void }) {
     </div>
     {!isCitizen && (
       <>
-        <p className="results-count">Showing {judgments.length} landmark judgment{judgments.length === 1 ? '' : 's'} · Real Supreme Court of India authorities (educational summaries)</p>
+        <div className="lib-filters">
+          <div className="lib-chips">
+            {domains.map(d => <button key={d} className={domain === d ? 'on' : ''} onClick={() => setDomain(d)}>{d}</button>)}
+          </div>
+          <div className="lib-selects">
+            <label>Year
+              <select value={year} onChange={e => setYear(e.target.value)}>
+                {years.map(y => <option key={y} value={y}>{y === 'Any' ? 'Any year' : y}</option>)}
+              </select>
+            </label>
+            <label>Court
+              <select value={court} onChange={e => setCourt(e.target.value)}>
+                {courts.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            {hasFilters && <button className="lib-clear" onClick={() => { setDomain('All'); setYear('Any'); setCourt('All'); }}>Clear filters</button>}
+          </div>
+        </div>
+        <p className="results-count">Showing {judgments.length} landmark judgment{judgments.length === 1 ? '' : 's'}{filterSummary ? ` · ${filterSummary}` : ''} · Real Indian courts, educational summaries</p>
         <div className="cards">
           {judgments.length === 0 && <div className="library-empty">No judgments matched your search. Try “privacy”, “FIR”, “377”, or a year like “2017”.</div>}
           {judgments.map((j, i) => (
             <article key={j.id}>
               <div className={'cover c' + (i % 3)}><Scale /></div>
-              <em>LANDMARK JUDGMENT</em>
+              <em>{j.domain}</em>
               <p className="card-cite">{j.citation}</p>
               <h3>{j.shortTitle}</h3>
               <p className="card-meta">{j.court} · {j.year} · {j.area}</p>
               <p>{j.summary}</p>
-              <button onClick={() => setSelectedId(j.id)}>Read <ArrowRight /></button>
+              <button onClick={() => { onReadJudgment?.(j.id); setSelectedId(j.id); }}>Read <ArrowRight /></button>
             </article>
           ))}
         </div>
@@ -772,5 +848,73 @@ function Library({ role, flash }: { role: Role, flash: (x: string) => void }) {
     )}
   </>;
 }
-function SmartLawyers({ flash }: { flash: (x: string) => void }) { const [city, setCity] = useState('Jaipur'), [state, setState] = useState('Rajasthan'), [area, setArea] = useState(''); const all = [['Priya Sharma', 'Family & civil law', 'Jaipur', 'Rajasthan', 8], ['Arjun Mehta', 'Cybercrime & technology', 'Jaipur', 'Rajasthan', 11], ['Neha Joshi', 'Property disputes', 'Delhi', 'Delhi', 9], ['Karan Sethi', 'Criminal defence', 'Mumbai', 'Maharashtra', 12], ['Aditi Rao', 'Consumer & banking law', 'Bengaluru', 'Karnataka', 7], ['Rahul Verma', 'Family & mediation', 'Lucknow', 'Uttar Pradesh', 10]]; const visible = all.filter(p => (!city || p[2] === city) && (!state || p[3] === state) && (!area || p[1].toLowerCase().includes(area.toLowerCase()))); return <><div className="heading"><div><em>VERIFIED LEGAL PROFESSIONALS</em><h1>Find the right lawyer</h1><p>Search by practice area, city, state, experience, and reviews.</p></div></div><div className="finder smart-finder"><Search /><input value={area} onChange={e => setArea(e.target.value)} placeholder="Practice area, e.g. family, cyber, property..." /><select value={city} onChange={e => setCity(e.target.value)}><option value="">All cities</option>{['Jaipur', 'Delhi', 'Mumbai', 'Bengaluru', 'Lucknow'].map(x => <option key={x}>{x}</option>)}</select><select value={state} onChange={e => setState(e.target.value)}><option value="">All states</option>{['Rajasthan', 'Delhi', 'Maharashtra', 'Karnataka', 'Uttar Pradesh'].map(x => <option key={x}>{x}</option>)}</select><button onClick={() => flash(`${visible.length} verified lawyers found.`)}>Search</button></div><p className="results-count">Showing {visible.length} verified advocates · All profiles are sample presentation data.</p><div className="cards lawyer-cards">{visible.map((p, i) => <article key={p[0] as string}><div className="face">{(p[0] as string).split(' ').map(w => w[0]).join('')}</div><span className="verified">✓ Verified</span><h3>Adv. {p[0]}</h3><p>{p[1]}</p><small>📍 {p[2]}, {p[3]} · {p[4]}+ years</small><strong>★ 4.{9 - i} <i>({48 - i * 4} reviews)</i></strong><button onClick={() => flash(`Consultation request sent to ${p[0]}.`)}>Request consultation <ArrowRight /></button></article>)}</div></> }
-function Lawyers({ flash }: { flash: (x: string) => void }) { return <SmartLawyers flash={flash} /> }
+const LAWYERS = [
+  { name: 'Vikas Singh', area: 'Criminal defence & murder trials', areaKey: 'criminal', city: 'Jaipur', state: 'Rajasthan', exp: 14, rating: 4.9, reviews: 152, fee: '₹3,500', courts: 'Sessions Court, Rajasthan High Court', languages: 'English · Hindi' },
+  { name: 'Karan Sethi', area: 'Criminal defence & appeals', areaKey: 'criminal', city: 'Jaipur', state: 'Rajasthan', exp: 12, rating: 4.8, reviews: 96, fee: '₹4,000', courts: 'Sessions Court, High Court', languages: 'English · Hindi' },
+  { name: 'Priya Sharma', area: 'Family & civil law', areaKey: 'family', city: 'Jaipur', state: 'Rajasthan', exp: 8, rating: 4.7, reviews: 61, fee: '₹2,000', courts: 'Family Court, District Court', languages: 'English · Hindi' },
+  { name: 'Devika Rathore', area: 'Criminal defence & bail matters', areaKey: 'criminal', city: 'Jodhpur', state: 'Rajasthan', exp: 9, rating: 4.6, reviews: 44, fee: '₹2,500', courts: 'Sessions Court, High Court', languages: 'Hindi · English' },
+  { name: 'Arjun Mehta', area: 'Cybercrime & technology law', areaKey: 'cyber', city: 'Jaipur', state: 'Rajasthan', exp: 11, rating: 4.8, reviews: 88, fee: '₹3,000', courts: 'Cyber Cells, District Courts', languages: 'English · Hindi' },
+  { name: 'Aditi Rao', area: 'Consumer & banking disputes', areaKey: 'consumer', city: 'Bengaluru', state: 'Karnataka', exp: 7, rating: 4.5, reviews: 39, fee: '₹2,200', courts: 'Consumer Commissions', languages: 'English' },
+  { name: 'Neha Joshi', area: 'Property disputes & tenancy', areaKey: 'property', city: 'Delhi', state: 'Delhi', exp: 9, rating: 4.6, reviews: 57, fee: '₹3,200', courts: 'Delhi District Courts, High Court', languages: 'English · Hindi' },
+  { name: 'Rahul Verma', area: 'Family & mediation', areaKey: 'family', city: 'Lucknow', state: 'Uttar Pradesh', exp: 10, rating: 4.4, reviews: 52, fee: '₹1,800', courts: 'Family Courts', languages: 'Hindi · English' },
+  { name: 'Sana Qureshi', area: 'Cybercrime & data protection', areaKey: 'cyber', city: 'Delhi', state: 'Delhi', exp: 6, rating: 4.5, reviews: 31, fee: '₹2,800', courts: 'Cyber Cells, District Courts', languages: 'English · Hindi' },
+  { name: 'Mahesh Choudhary', area: 'Property & land revenue matters', areaKey: 'property', city: 'Sikar', state: 'Rajasthan', exp: 15, rating: 4.7, reviews: 73, fee: '₹2,400', courts: 'Revenue Boards, District Courts', languages: 'Hindi · Rajasthani' },
+] as const;
+
+const ISSUE_KEYWORDS: { key: string; label: string; re: RegExp }[] = [
+  { key: 'criminal', label: 'Criminal / murder', re: /murder|kill|assault|theft|snatch|robber|stab|shot|criminal|fir|cogniz|302|arrest|bail/i },
+  { key: 'cyber', label: 'Cybercrime / fraud', re: /cyber|online|upi|otp|hack|fraud|scam|impersonat|social media|data|privacy/i },
+  { key: 'property', label: 'Property / land', re: /property|land|plot|tenant|rent|evict|possession|boundary|deed|encroach|lease/i },
+  { key: 'consumer', label: 'Consumer / banking', re: /consumer|refund|bank|insurance|defect|service|warranty|emi|deduct/i },
+  { key: 'family', label: 'Family / matrimonial', re: /divorce|custody|maintenance|alimony|marriage|dowry|domestic|guardian|adoption/i },
+];
+
+function detectIssueKey(text: string): string | null {
+  return ISSUE_KEYWORDS.find(k => k.re.test(text))?.key ?? null;
+}
+
+function SmartLawyers({ flash, onRequest }: { flash: (x: string) => void, onRequest: (lawyerName: string, issue: string, details: string, area: string) => void }) {
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [area, setArea] = useState('');
+  const [typeKey, setTypeKey] = useState('');
+  const [sortBy, setSortBy] = useState<'rating' | 'experience' | 'fee'>('rating');
+  const [asking, setAsking] = useState<{ name: string; area: string } | null>(null);
+  const [issue, setIssue] = useState('');
+  const [details, setDetails] = useState('');
+
+  // The issue text doubles as a smart matcher: it pre-filters lawyers by case type.
+  const issueKey = detectIssueKey(issue);
+  const effectiveType = typeKey || issueKey || '';
+
+  let visible = LAWYERS.filter(p =>
+    (!city || p.city === city)
+    && (!state || p.state === state)
+    && (!area || p.area.toLowerCase().includes(area.toLowerCase()))
+    && (!effectiveType || p.areaKey === effectiveType));
+  visible = [...visible].sort((a, b) =>
+    sortBy === 'rating' ? b.rating - a.rating
+      : sortBy === 'experience' ? b.exp - a.exp
+        : parseInt(a.fee.replace(/\D/g, '')) - parseInt(b.fee.replace(/\D/g, '')));
+
+  return <><div className="heading"><div><em>VERIFIED LEGAL PROFESSIONALS</em><h1>Find the right lawyer</h1><p>Filter by case type, city and state — then sort by rating, experience or fee. Requests go straight to the advocate's inbox.</p></div></div>
+    <div className="finder smart-finder"><Search /><input value={area} onChange={e => setArea(e.target.value)} placeholder="Practice area, e.g. murder, cyber, property..." /><select value={city} onChange={e => setCity(e.target.value)}><option value="">All cities</option>{Array.from(new Set(LAWYERS.map(p => p.city))).map(x => <option key={x}>{x}</option>)}</select><select value={state} onChange={e => setState(e.target.value)}><option value="">All states</option>{Array.from(new Set(LAWYERS.map(p => p.state))).map(x => <option key={x}>{x}</option>)}</select><button onClick={() => flash(`${visible.length} verified lawyers found.`)}>Search</button></div>
+    <div className="type-chips">
+      <button className={effectiveType === '' ? 'on' : ''} onClick={() => setTypeKey('')}>All case types</button>
+      {ISSUE_KEYWORDS.map(k => <button key={k.key} className={effectiveType === k.key ? 'on' : ''} onClick={() => setTypeKey(k.key)}>{k.label}</button>)}
+    </div>
+    <div className="lawyer-sort">
+      <label>Sort by
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'rating' | 'experience' | 'fee')}>
+          <option value="rating">Top rating</option>
+          <option value="experience">Most experienced</option>
+          <option value="fee">Lowest fee</option>
+        </select>
+      </label>
+      {issue.trim() && issueKey && <span className="lawyer-match"><Sparkles width={12} /> Your description matched “{ISSUE_KEYWORDS.find(k => k.key === issueKey)?.label}” — showing specialists first.</span>}
+      <span className="results-count">{visible.length} advocate{visible.length === 1 ? '' : 's'} found</span>
+    </div>
+    <div className="cards lawyer-cards">{visible.map((p) => <article key={p.name} className={issueKey && p.areaKey === issueKey ? 'best-match' : ''}><div className="face">{p.name.split(' ').map(w => w[0]).join('')}</div><span className="verified">✓ Verified</span><h3>Adv. {p.name}</h3><p>{p.area}</p><small>📍 {p.city}, {p.state} · {p.exp}+ yrs · {p.fee} consult</small><strong>★ {p.rating} <i>({p.reviews} reviews)</i></strong><small className="lawyer-courts">{p.courts} · {p.languages}</small><button onClick={() => { setAsking({ name: p.name, area: p.area }); setIssue(''); setDetails(''); }}>Request consultation <ArrowRight /></button></article>)}</div>
+    {visible.length === 0 && <div className="library-empty">No advocates match these filters. Clear a filter or try a nearby city.</div>}
+    {asking && <div className="modal-veil" onClick={() => setAsking(null)}><form className="modal-card" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); if (!issue.trim()) return; onRequest(asking.name, issue.trim(), details.trim() || issue.trim(), asking.area); setAsking(null); }}><div className="modal-head"><h3><Users /> Request · Adv. {asking.name}</h3><button type="button" className="modal-x" onClick={() => setAsking(null)}><X /></button></div><p className="modal-sub">Describe your issue. Adv. {asking.name} will see it in their intake inbox and can accept to start a conversation.</p><label>Your issue *<input value={issue} onChange={e => setIssue(e.target.value)} placeholder="e.g. Murder trial defence for a family member in Jaipur" required /></label><label>Details<textarea value={details} onChange={e => setDetails(e.target.value)} rows={3} placeholder="What happened, key dates, what you need help with…" /></label><div className="modal-actions"><button type="button" className="ghost" onClick={() => setAsking(null)}>Cancel</button><button type="submit" className="primary"><Send /> Send request</button></div></form></div>  }</>;
+}
