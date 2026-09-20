@@ -501,3 +501,22 @@
 @media(max-width:1000px){.da-grid{grid-template-columns:1fr}.cd-overview{grid-template-columns:1fr}.cd-room-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.cr-item{flex-direction:column}.cr-actions{flex-direction:row}.cr-thread-row{flex-wrap:wrap}.cr-when{display:none}.da-two{grid-template-columns:1fr}.cd-tabs{overflow-x:auto}.cc-thread{height:calc(100svh - 330px);min-height:300px}}
 @media(max-width:720px){.role-lawyer .chat-head{gap:11px;padding-bottom:14px}.role-lawyer .chat-head>svg{width:36px;height:36px;padding:8px}.role-lawyer .chat-head h1{font-size:22px}.role-lawyer .smart-chat{margin-top:14px;gap:12px}.role-lawyer .chat-messages{padding:16px 13px}.role-lawyer .chat-message{max-width:94%}.role-lawyer .prompt-panel{padding:14px}.role-lawyer .prompt-panel>div{display:none}.role-lawyer .prompt-panel{display:grid;grid-template-columns:1fr 1fr;gap:8px}.role-lawyer .prompt-panel h3,.role-lawyer .case-context{grid-column:1 / -1}.role-lawyer .prompt-panel>button{margin-top:0}.role-lawyer .composer{margin-top:10px}}
+
+/* ---- Graph tidy button ---- */
+.cg-tidy{display:flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 12px;font-size:10.5px;font-weight:600}
+.cg-tidy:hover{border-color:#5a7ea9}
+.cg-tidy svg{width:13px;height:13px}
+.dark .cg-tidy{background:#10243b;border-color:#2a466a;color:#eaf1fa}
+
+/* ---- Know your rights cards ---- */
+.rights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.rights-card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px;text-align:left;display:grid;gap:5px;color:var(--ink);align-content:start}
+.rights-card:hover{border-color:var(--teal);transform:translateY(-2px);transition:transform .15s}
+.rights-card b{font-size:12px}
+.rights-card p{font-size:10.5px;line-height:1.55;color:var(--muted);margin:0}
+.rights-card small{font-size:9px;color:var(--teal);font-weight:700;letter-spacing:.4px}
+.rights-ico{font-size:17px}
+.rights .title p{font-size:10.5px}
+
+/* ---- Empty search result ---- */
+.table-empty{padding:22px 20px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { RotateCcw, Sparkles, X } from 'lucide-react';
+import { Network, RotateCcw, Sparkles, X } from 'lucide-react';
 import { explainCaseNetwork } from '../lib/gemini';
 
 /* ---------- Types ---------- */
@@ -58,6 +58,23 @@ const VW = 640;
 const VH = 430;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+/** Clean structural layout: the hub sits center, well-connected nodes form the inner ring, leaves go outside. */
+function computeTidyPositions(ns: { id: string }[], nbrs: Record<string, Set<string>>): Record<string, Pos> {
+  if (!ns.length) return {};
+  const center = { x: VW / 2, y: VH / 2 - 14 };
+  const degree = (id: string) => nbrs[id]?.size ?? 0;
+  const hub = [...ns].sort((a, b) => degree(b.id) - degree(a.id))[0];
+  const pos: Record<string, Pos> = { [hub.id]: center };
+  const place = (list: { id: string }[], radius: number, stretch: number, start: number) =>
+    list.forEach((n, i) => {
+      const a = start + (i * 2 * Math.PI) / list.length;
+      pos[n.id] = { x: clamp(Math.round(center.x + Math.cos(a) * radius * stretch), 46, VW - 46), y: clamp(Math.round(center.y + Math.sin(a) * radius), 46, VH - 40) };
+    });
+  place(ns.filter(n => n.id !== hub.id && degree(n.id) > 1), 112, 1.4, -Math.PI / 2);
+  place(ns.filter(n => n.id !== hub.id && degree(n.id) <= 1), 176, 1.3, -Math.PI / 2 + Math.PI / Math.max(1, ns.length - 1));
+  return pos;
+}
+
 /* ---------- Component ---------- */
 
 export function CaseGraph({ caseData }: { caseData: GraphCase }) {
@@ -80,18 +97,20 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
     () => caseData.edges.filter(e => nodeById[e.from] && nodeById[e.to]),
     [caseData, nodeById],
   );
-  const defaults = useMemo(
-    () => Object.fromEntries(nodes.map(n => [n.id, { x: n.x, y: n.y }])) as Record<string, Pos>,
-    [nodes],
-  );
-  const positions = { ...defaults, ...layout[caseData.id] };
-
   const neighbors = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     nodes.forEach(n => { map[n.id] = new Set(); });
     edges.forEach(e => { map[e.from]?.add(e.to); map[e.to]?.add(e.from); });
     return map;
   }, [nodes, edges]);
+
+  const defaults = useMemo(() => {
+    const base = Object.fromEntries(nodes.map(n => [n.id, { x: n.x, y: n.y }])) as Record<string, Pos>;
+    // Nodes without coordinates (e.g. an AI-generated graph) fall back to the structural layout.
+    if (nodes.some(n => !Number.isFinite(n.x) || !Number.isFinite(n.y))) return computeTidyPositions(nodes, neighbors);
+    return base;
+  }, [nodes, neighbors]);
+  const positions = { ...defaults, ...layout[caseData.id] };
 
   const selectedNode = selected ? nodeById[selected] : undefined;
 
@@ -143,6 +162,10 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
   const resetLayout = () => {
     setLayout(prev => ({ ...prev, [caseData.id]: {} }));
     setKindFilter(null);
+  };
+
+  const tidyLayout = () => {
+    setLayout(prev => ({ ...prev, [caseData.id]: computeTidyPositions(nodes, neighbors) }));
   };
 
   const askAI = async () => {
@@ -208,9 +231,10 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
             );
           })}
 
-          {/* Suspected-link labels */}
+          {/* Edge labels: always for suspected links, plus every link that touches the selected node */}
           {edges.map((e, i) => {
-            if (!e.suspected || !e.label) return null;
+            const show = e.suspected || (selected !== null && (e.from === selected || e.to === selected));
+            if (!show || !e.label) return null;
             const a = positions[e.from], b = positions[e.to];
             if (!a || !b) return null;
             const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -289,6 +313,7 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
             {KIND_META[kind].legend}
           </button>
         ))}
+        <button className="cg-tidy" onClick={tidyLayout} title="Re-arrange the network into a clean layout"><Network />Tidy layout</button>
         <button className="cg-reset" onClick={resetLayout}><RotateCcw />Reset layout</button>
       </div>
       <p className="cg-hint">Solid line: confirmed link. Dashed line: suspected or AI-suggested link. Drag a node to rearrange, select it to see its connections.</p>
