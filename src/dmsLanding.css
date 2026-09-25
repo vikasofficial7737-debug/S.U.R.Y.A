@@ -1,0 +1,93 @@
+/* Government-portal theme for the NyayaVault landing + DMS login */
+.gov-topbar{max-width:1200px;margin:0 auto;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#5b6b7c}
+.gov-topbar-left{display:flex;align-items:center;gap:8px}.gov-topbar-left svg{width:16px;color:#1a4d8f}
+.gov-topbar-right{display:flex;align-items:center;gap:10px}
+.gov-topbar-right button{background:none;border:1px solid #d5e0ea;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px}
+.gov-lang{font-weight:600;letter-spacing:.4px}
+.gov-emblem-strip{max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:2px solid #1a4d8f;background:#fff}
+.dms-landing.dark .gov-emblem-strip{background:#0d1b2c;border-color:#2f6cb3}
+.gov-emblem-brand{display:flex;align-items:center;gap:13px}
+.gov-chakra{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:24px;color:#fff;background:linear-gradient(135deg,#1a4d8f,#0d6b78);flex-shrink:0}
+.gov-emblem-brand b{display:block;font:700 20px/1.2 Georgia,serif;color:#12314f;letter-spacing:.3px}
+.gov-emblem-brand small{display:block;font-size:10.5px;color:#68798c;letter-spacing:.3px;margin-top:2px}
+.dms-landing.dark .gov-emblem-brand b{color:#eef5fd}.dms-landing.dark .gov-emblem-brand small{color:#8fa5ba}
+.gov-strip-links{display:flex;gap:18px;font-size:11.5px;font-weight:600}
+.gov-strip-links a{color:#1a4d8f;text-decoration:none;cursor:pointer}.gov-strip-links a:hover{text-decoration:underline}
+.dms-landing.dark .gov-strip-links a{color:#7db4e8}
+
+.gov-hero{max-width:1200px;margin:0 auto;padding:44px 18px 50px;display:grid;grid-template-columns:1.35fr .65fr;gap:38px;align-items:center}
+.gov-hero-kicker{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:1.2px;color:#7a1420;background:#f7e8e9;border:1px solid #eccfd2;border-radius:4px;padding:5px 10px}
+.gov-hero-kicker svg{width:14px}
+.dms-landing.dark .gov-hero-kicker{color:#f0a9b0;background:#2a1520;border-color:#4a2530}
+.gov-hero h1{font:600 clamp(30px,4vw,46px)/1.15 Georgia,serif;color:#13233b;margin:16px 0 12px;letter-spacing:-.5px}
+.gov-hero h1 em{font-style:normal;color:#0d6b78}
+.dms-landing.dark .gov-hero h1{color:#eef5fd}
+.gov-hero p{max-width:620px;font-size:13.5px;line-height:1.65;color:#55677c}
+.dms-landing.dark .gov-hero p{color:#a9bccd}
+.gov-hero-cta{margin-top:22px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.gov-primary{background:#135e9e;color:#fff;border:0;border-radius:6px;padding:13px 20px;font-weight:700;font-size:12.5px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 2px 6px #135e9e33}
+.gov-primary:hover{background:#0d4a80}
+.gov-primary svg{width:16px}
+.gov-hero-badges{display:flex;gap:9px;flex-wrap:wrap}
+.gov-hero-badges span{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#2c5f3a;background:#e9f5ec;border:1px solid #cfe8d6;border-radius:4px;padding:4px 9px}
+.gov-hero-badges svg{width:13px}
+.dms-landing.dark .gov-hero-badges span{color:#9fd8ae;background:#12251a;border-color:#245c34}
+.gov-hero-visual{display:flex;flex-direction:column;align-items:center;gap:12px}
+.gov-vault{width:170px;height:170px;border-radius:50%;background:linear-gradient(145deg,#0c2e50,#0d6b78);display:grid;place-items:center;color:#8de9d6;box-shadow:0 10px 30px #0c2e5033;border:6px solid #fff}
+.gov-vault svg{width:76px;height:76px}
+.dms-landing.dark .gov-vault{border-color:#12283f}
+.gov-hero-visual small{font-size:9.5px;color:#8095a8;letter-spacing:.4px}
+
+.gov-footer{border-top:1px solid #d9e4ee;background:#eef4f9;padding:16px 18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:10.5px;color:#68798c;margin-top:0}
+.dms-landing.dark .gov-footer{background:#0d1b2c;border-color:#263b52;color:#8fa5ba}
+
+/* ---------- DMS login page ---------- */
+.gov-login{min-height:100vh;background:#eef3f8;color:#13233b;display:flex;flex-direction:column}
+.gov-login.dark{background:#0b1624;color:#e5eef7}
+.gov-login .gov-topbar{width:100%}
+.gov-login .gov-topbar button{background:none;border:1px solid #d5e0ea;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:inherit}
+.gov-login .gov-topbar button svg{width:13px}
+.gov-login .gov-emblem-strip{max-width:none;padding:12px 26px}
+.gov-login-main{max-width:1000px;margin:38px auto 46px;padding:0 18px;display:grid;grid-template-columns:.85fr 1fr;gap:34px;align-items:start;width:100%}
+.gov-login-aside{background:linear-gradient(160deg,#0c2e50,#0d4a5e);border-radius:12px;padding:34px 30px;color:#fff;display:flex;flex-direction:column;gap:12px}
+.gov-shield{width:58px;height:58px;border-radius:14px;background:#ffffff1c;border:1px solid #7dd8c544;display:grid;place-items:center;color:#8de9d6}
+.gov-shield svg{width:30px}
+.gov-login-aside h1{font:600 26px Georgia,serif;margin:6px 0 0}
+.gov-tag{font-size:12px;color:#b9d4e2;line-height:1.55;margin:0}
+.gov-login-aside ul{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-direction:column;gap:10px;font-size:11.5px}
+.gov-login-aside li{display:flex;gap:8px;align-items:center;color:#d7e8f2}
+.gov-login-aside li svg{width:15px;color:#7de2cd;flex-shrink:0}
+.gov-login-aside>small{margin-top:auto;padding-top:16px;font-size:9.5px;color:#9db8c9;border-top:1px solid #ffffff22;line-height:1.5}
+.gov-login-card{background:#fff;border:1px solid #d9e4ee;border-radius:12px;padding:30px 32px;box-shadow:0 4px 18px #16324e14}
+.gov-login.dark .gov-login-card{background:#101f32;border-color:#263b52}
+.gov-login-card h2{font:600 20px Georgia,serif;color:#13233b;margin:0 0 5px}
+.gov-login.dark .gov-login-card h2{color:#eef5fd}
+.gov-sub{font-size:11.5px;color:#68798c;margin:0 0 18px}
+.gov-login-card label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;letter-spacing:.3px;color:#33475c;margin-bottom:14px;text-transform:uppercase}
+.gov-login.dark .gov-login-card label{color:#a9bccd}
+.gov-login-card select,.gov-login-card input{border:1px solid #c4d4e3;border-radius:6px;padding:10px 12px;font-size:13px;background:#fbfdfe;color:inherit;outline:none}
+.gov-login-card select:focus,.gov-login-card input:focus{border-color:#135e9e;box-shadow:0 0 0 3px #135e9e22}
+.gov-login.dark .gov-login-card select,.gov-login.dark .gov-login-card input{background:#0b1624;border-color:#33506d}
+.gov-jurisdiction-note{font-size:10.5px;color:#1a5c40;background:#e9f5ec;border:1px solid #cfe8d6;border-radius:6px;padding:8px 11px;margin:-4px 0 14px;line-height:1.5}
+.gov-login.dark .gov-jurisdiction-note{color:#9fd8ae;background:#12251a;border-color:#245c34}
+.gov-error{font-size:11px;color:#a12633;background:#fbeaea;border:1px solid #f0c9cc;border-radius:6px;padding:8px 11px;margin:0 0 12px;line-height:1.5}
+.gov-login.dark .gov-error{color:#f2a7b0;background:#2a1520;border-color:#4a2530}
+.gov-submit{width:100%;background:#135e9e;color:#fff;border:0;border-radius:6px;padding:13px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin-top:4px}
+.gov-submit:disabled{opacity:.55;cursor:not-allowed}
+.gov-submit:hover:not(:disabled){background:#0d4a80}
+.gov-submit svg{width:15px}
+.gov-login-foot{margin-top:16px;padding-top:14px;border-top:1px solid #e4edf4;display:flex;flex-direction:column;gap:5px;font-size:10.5px;color:#68798c}
+.gov-login.dark .gov-login-foot{border-color:#263b52}
+
+@media(max-width:860px){.gov-hero{grid-template-columns:1fr;padding:30px 18px}.gov-hero-visual{display:none}.gov-login-main{grid-template-columns:1fr;margin:24px auto}.gov-strip-links{display:none}.gov-emblem-strip{flex-wrap:wrap}}
+
+/* ---------- S.U.R.Y.A. assistance-suite band ---------- */
+.surya-band{background:#f4f7fb;border-top:1px solid #d9e4ee;padding:40px 18px 46px}
+.dms-landing.dark .surya-band{background:#0e1c2e;border-top-color:#263b52}
+.surya-band-kicker{text-align:center;font:600 15px Georgia,serif;color:#33475c;margin:0 0 4px}
+.surya-band-kicker b{color:#0d6b78}
+.dms-landing.dark .surya-band-kicker{color:#c9d9e8}
+.surya-band-sub{text-align:center;font-size:11px;color:#68798c;margin:0 0 26px}
+.dms-landing.dark .surya-band-sub{color:#8fa5ba}
+.surya-band .role-cards{max-width:1200px;margin:0 auto;padding:0;gap:18px}
+.surya-band .role-card{margin:0}

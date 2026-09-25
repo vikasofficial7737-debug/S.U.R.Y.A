@@ -24,7 +24,47 @@ export type IntelligenceMap = {
 };
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-flash-latest';
+
+/* Presentation-grade reliability.
+   Google retires models (404) and rate-limits them (503/429) without notice, which would
+   look like a broken assistant in front of an evaluator. So every call walks an ordered
+   chain of equivalent models: transient failures are retried once on the same model, then
+   the next model is tried. Configure with VITE_GEMINI_FALLBACK_MODELS if you want your own. */
+const FALLBACK_MODELS = (import.meta.env.VITE_GEMINI_FALLBACK_MODELS
+  || 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3-flash-preview')
+  .split(',').map((m: string) => m.trim()).filter(Boolean);
+const MODEL_CHAIN: string[] = [MODEL, ...FALLBACK_MODELS.filter((m: string) => m !== MODEL)];
+const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+export let lastModelUsed = MODEL;
+
+async function requestModel(body: Record<string, unknown>): Promise<Record<string, any>> {
+  let lastMessage = '';
+  for (const model of MODEL_CHAIN) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey())}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        lastMessage = 'The chatbot could not reach the AI service. Check the internet connection and try again.';
+        break;
+      }
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) { lastModelUsed = model; return payload; }
+      lastMessage = payload?.error?.message || `The chatbot request failed (${response.status}).`;
+      if (TRANSIENT_STATUS.has(response.status) && attempt === 0) {
+        await new Promise(r => setTimeout(r, 900));
+        continue;
+      }
+      break;
+    }
+  }
+  throw new Error(lastMessage || 'The chatbot is unavailable right now. Please try again.');
+}
 
 function apiKey() {
   const key = import.meta.env.VITE_GEMINI_API_KEY?.trim();
@@ -40,19 +80,11 @@ async function generate(prompt: string, responseSchema?: Record<string, unknown>
     generationConfig.responseMimeType = 'application/json';
     generationConfig.responseSchema = responseSchema;
   }
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(MODEL)}:generateContent?key=${encodeURIComponent(apiKey())}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const payload = await requestModel({
       systemInstruction: { parts: [{ text: 'You are S.U.R.Y.A., an Indian legal-information assistant for a student demonstration. Be clear, factual, and concise. Never claim to be a lawyer, never invent case facts or citations, and distinguish supplied case facts from general information. Add a short note that your answer is general information, not legal advice when giving legal guidance.' }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig,
-    }),
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || `The chatbot request failed (${response.status}).`);
-  }
   const candidate = payload?.candidates?.[0];
   const text = candidate?.content?.parts?.map((part: { text?: string }) => part.text || '').join('').trim();
   if (!text) throw new Error('The chatbot returned an empty response. Please try again.');
@@ -66,19 +98,11 @@ async function generateParts(parts: Record<string, unknown>[], responseSchema?: 
     generationConfig.responseMimeType = 'application/json';
     generationConfig.responseSchema = responseSchema;
   }
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(MODEL)}:generateContent?key=${encodeURIComponent(apiKey())}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const payload = await requestModel({
       systemInstruction: { parts: [{ text: 'You are S.U.R.Y.A., an Indian legal-information assistant. Be precise and factual, never invent content not present in the supplied material, and note when something needs verification by a qualified professional.' }] },
       contents: [{ role: 'user', parts }],
       generationConfig,
-    }),
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || `The document analysis request failed (${response.status}).`);
-  }
   const candidate = payload?.candidates?.[0];
   const text = candidate?.content?.parts?.map((part: { text?: string }) => part.text || '').join('').trim();
   if (!text) throw new Error('The analyzer returned an empty response. Please try again.');

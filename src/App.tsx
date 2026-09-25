@@ -1,11 +1,13 @@
 // @ts-nocheck
 import { useEffect, useRef, useState } from 'react';
-import { Scale, UserRound, BriefcaseBusiness, GraduationCap, ArrowRight, Search, Menu, X, Home, Bot, Users, BookOpen, Briefcase, CalendarDays, FileText, Bell, Send, ShieldCheck, Sparkles, Plus, Check, ChevronRight, Sun, Moon, Languages, MapPin, Mic } from 'lucide-react';
+import { Scale, UserRound, BriefcaseBusiness, GraduationCap, ArrowRight, Search, Menu, X, Home, Bot, Users, BookOpen, Briefcase, CalendarDays, FileText, Bell, Send, ShieldCheck, Sparkles, Plus, Check, ChevronRight, Sun, Moon, Languages, MapPin, Mic, LockKeyhole, Landmark, Fingerprint, FileLock2 } from 'lucide-react';
 import './App.css';
 import './ai.css';
 import './roles.css';
 import './finder.css';
 import './judgment.css';
+import './dmsLanding.css';
+import './roleThemes.css';
 import { JUDGMENTS, CITIZEN_GUIDES, type Judgment, type CitizenGuide } from './data/judgments';
 import { askGemini, type CaseContext } from './lib/gemini';
 import { CaseGraph } from './components/CaseGraph';
@@ -15,19 +17,56 @@ import { DocumentAnalyzerView } from './components/DocumentAnalyzerView';
 import { SEED_REQUESTS, timestampNow, uid, type ClientRequest, type CaseFileItem } from './data/clientRequests';
 import { CASE_EXTRAS, buildStarterExtras } from './data/caseExtras';
 import { StudentStudies, type StudyRecord, type QuizAttempt } from './components/StudentStudies';
-type Role = 'citizen' | 'lawyer' | 'student'; type View = 'landing' | 'home' | 'chat' | 'cases' | 'library' | 'lawyers' | 'calendar' | 'clients' | 'requests' | 'docs' | 'studies';
+import { type DmsSession } from './components/DmsLogin';
+import { DMSWorkspace } from './components/DMSWorkspace';
+import { SuryaLanding } from './components/SuryaLanding';
+import { DigiLockerAuth } from './components/DigiLockerAuth';
+import { DmsUniqueIdStep, LawyerBarIdStep } from './components/AuthFlows';
+import { resolveSuiteUser } from './lib/auth';
+import { SuiteAdminPanel } from './components/SuiteAdminPanel';
+import { type DigiIdentity, type SuiteRole, type DmsRoleType } from './data/identityBindings';
+import type { DmsSessionV2 } from './lib/session';
+
+/* Map the new identity-based session onto the workspace's display-role shape. */
+function toLegacyDms(s: DmsSessionV2): DmsSession {
+  const map: Record<DmsRoleType, DmsSession['role']> = {
+    super_admin: 'System Admin',
+    department_admin: 'System Admin',
+    investigating_officer: 'Investigating Officer',
+    forensic_officer: 'Forensic Officer',
+    legal_officer: 'Legal Department Officer',
+    court_registrar: 'Court / Registrar Staff',
+    records_compliance: 'Records / Compliance Officer',
+  };
+  const parts = s.fullName.replace(/^(Dr\.|Adv\.)\s+/i, '').split(' ').filter(Boolean);
+  const shortName = parts.length >= 2 ? parts[0][0] + '. ' + parts[parts.length - 1] : s.fullName;
+  return { name: shortName, role: map[s.role], jurisdiction: s.jurisdiction, department: s.department, officerId: s.officerId };
+}
+
+const STORAGE_KEY = 'surya-app-state-v1';
+function loadSaved(): SavedState { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as SavedState; } catch { return {}; } }
+type View = 'landing' | 'home' | 'chat' | 'cases' | 'library' | 'lawyers' | 'calendar' | 'clients' | 'requests' | 'docs' | 'studies' | 'dms-auth' | 'dms-id' | 'suite-auth' | 'lawyer-bar' | 'dms-workspace' | 'suite-admin';
 const info = { citizen: { name: 'Citizen', icon: UserRound, color: 'orange', promise: 'Clear legal guidance, when you need it.' }, lawyer: { name: 'Lawyer', icon: BriefcaseBusiness, color: 'blue', promise: 'Organize cases. Work with clarity.' }, student: { name: 'Student', icon: GraduationCap, color: 'green', promise: 'Understand landmark cases, simply.' } } as const;
 const nav = { citizen: [['Home', Home, 'home'], ['Ask S.U.R.Y.A.', Bot, 'chat'], ['Find a Lawyer', Users, 'lawyers'], ['My Requests', Check, 'requests'], ['Know Your Rights', BookOpen, 'library']], lawyer: [['Dashboard', Home, 'home'], ['My Cases', Briefcase, 'cases'], ['My Clients', Users, 'clients'], ['Document Analyzer', FileText, 'docs'], ['AI Case Assistant', Sparkles, 'chat'], ['Judgment Research', BookOpen, 'library'], ['Calendar & Reminders', CalendarDays, 'calendar']], student: [['Study Home', Home, 'home'], ['Case Library', BookOpen, 'library'], ['My Case Studies', FileText, 'studies'], ['Ask about a Case', Bot, 'chat']] } as const;
-/* ---------- Session persistence ---------- */
-const STORAGE_KEY = 'surya-app-state-v1';
-type SavedState = { role?: Role; view?: View; dark?: boolean; cases?: CaseRecord[]; requests?: ClientRequest[]; caseDocs?: Record<string, CaseFileItem[]>; studyRecords?: StudyRecord[]; quizHistory?: QuizAttempt[]; librarySelectedId?: string | null };
-function loadSaved(): SavedState { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as SavedState; } catch { return {}; } }
+type SavedState = { role?: Role; view?: View; authed?: 'dms' | Role; dark?: boolean; cases?: CaseRecord[]; requests?: ClientRequest[]; caseDocs?: Record<string, CaseFileItem[]>; studyRecords?: StudyRecord[]; quizHistory?: QuizAttempt[]; librarySelectedId?: string | null; dmsSession?: DmsSession };
 const SAVED = loadSaved();
-const initialRole: Role = SAVED.role === 'lawyer' || SAVED.role === 'student' ? SAVED.role : 'citizen';
-const initialView: View = SAVED.role === initialRole && SAVED.view && SAVED.view !== 'landing' ? SAVED.view : 'landing';
+/* Views that only an authenticated session may open. */
+const DASH_VIEWS: View[] = ['home', 'chat', 'cases', 'library', 'lawyers', 'calendar', 'clients', 'requests', 'docs', 'studies'];
+/* A dashboard is restored ONLY when that exact session actually authenticated:
+   DigiLocker (+Unique ID) for the DMS, DigiLocker (+Bar ID) for the suite roles.
+   Hand-edited storage therefore cannot open an officer's or an advocate's workspace. */
+const initialRole: Role = SAVED.authed === 'lawyer' || SAVED.authed === 'student' ? SAVED.authed : 'citizen';
+const initialView: View =
+  SAVED.authed === 'dms' && SAVED.dmsSession && SAVED.view === 'dms-workspace' ? 'dms-workspace'
+    : SAVED.authed && SAVED.authed === SAVED.role && SAVED.view && DASH_VIEWS.includes(SAVED.view) ? SAVED.view
+      : 'landing';
 
 export default function App() {
   const [role, setRole] = useState<Role>(initialRole), [view, setView] = useState<View>(initialView), [dark, setDark] = useState<boolean>(SAVED.dark ?? false), [open, setOpen] = useState(false), [toast, setToast] = useState(''), [aiCaseId, setAiCaseId] = useState<string | undefined>();
+  const [dmsSession, setDmsSession] = useState<DmsSession | null>(SAVED.dmsSession ?? null);
+  const [authDoor, setAuthDoor] = useState<'dms' | SuiteRole | null>(null);
+  const [authed, setAuthed] = useState<'dms' | Role | null>(SAVED.authed ?? null);
+  const [digiIdentity, setDigiIdentity] = useState<DigiIdentity | null>(null);
   const [cases, setCases] = useState<CaseRecord[]>(SAVED.cases?.length ? SAVED.cases : REAL_CASES);
   const [requests, setRequests] = useState<ClientRequest[]>(SAVED.requests ?? SEED_REQUESTS);
   const [caseDocs, setCaseDocs] = useState<Record<string, CaseFileItem[]>>(SAVED.caseDocs ?? {});
@@ -45,9 +84,9 @@ export default function App() {
     try {
       const lightDocs: Record<string, CaseFileItem[]> = {};
       Object.entries(caseDocs).forEach(([k, v]) => { lightDocs[k] = v.map(d => ({ ...d, dataUrl: undefined })); });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, view: view === 'landing' ? undefined : view, dark, cases, requests, caseDocs: lightDocs, studyRecords, quizHistory, librarySelectedId }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, view: view === 'landing' ? undefined : view, dark, authed, cases, requests, caseDocs: lightDocs, studyRecords, quizHistory, librarySelectedId, dmsSession }));
     } catch { /* storage unavailable or full — in-memory demo state still works */ }
-  }, [role, view, dark, cases, requests, caseDocs, studyRecords, quizHistory, librarySelectedId]);
+  }, [role, view, dark, authed, cases, requests, caseDocs, studyRecords, quizHistory, librarySelectedId, dmsSession]);
   const baseDocsFor = (caseId: string): CaseFileItem[] =>
     CASE_EXTRAS[caseId]?.caseFile ?? (() => {
       const c = cases.find(x => x.id === caseId);
@@ -87,7 +126,23 @@ export default function App() {
     flash(`Request sent to ${lawyerName}. You will be notified when they respond.`);
     setView('requests');
   };
-  if (view === 'landing') return <Landing role={role} setRole={setRole} start={() => setView('home')} dark={dark} setDark={setDark} />;
+  if (view === 'dms-auth') return <DigiLockerAuth channel="pin" purpose="S.U.R.Y.A. Document Management System" onBack={() => setView('landing')} onVerified={id => { setDigiIdentity(id); setView('dms-id'); }} dark={dark} />;
+  if (view === 'dms-id' && digiIdentity) return <DmsUniqueIdStep identity={digiIdentity} onBack={() => setView('dms-auth')} onDone={s => { setDmsSession(toLegacyDms(s)); setAuthed('dms'); setView('dms-workspace'); }} />;
+  if (view === 'suite-auth' && authDoor && authDoor !== 'dms') return <DigiLockerAuth channel="otp" purpose={`S.U.R.Y.A. — ${authDoor.charAt(0).toUpperCase() + authDoor.slice(1)} Assistance`} onBack={() => setView('landing')} onVerified={id => {
+    // Platform super-admin (SA-2026-0001) gets the Assistance Suite admin overview.
+    if (id.phone === '919876500006') { setAuthed('dms'); setView('suite-admin'); return; }
+    if (authDoor === 'lawyer') { setDigiIdentity(id); setView('lawyer-bar'); return; }
+    resolveSuiteUser(id.phone, authDoor).then(r => {
+      if (r.ok) { setRole(authDoor); setAuthed(authDoor); setView('home'); }
+      else { flash(r.error); setView('landing'); }
+    });
+  }} dark={dark} />;
+  if (view === 'lawyer-bar' && digiIdentity) return <LawyerBarIdStep identity={digiIdentity} onBack={() => setView('landing')} onDone={s => { setRole('lawyer'); setAuthed('lawyer'); setView('home'); flash(`Welcome, Advocate ${s.fullName.split(' ').slice(-1)[0]} — Bar ID ${s.barEnrollmentId} verified.`); }} />;
+  if (view === 'dms-workspace' && dmsSession) return <DMSWorkspace session={dmsSession} onExit={() => { setDmsSession(null); setAuthed(null); setView('landing'); }} dark={dark} setDark={setDark} />;
+  if (view === 'suite-admin') return <SuiteAdminPanel onBack={() => { setAuthed(null); setView('landing'); }} />;
+  const missingPrereq = (view === 'dms-id' && !digiIdentity) || (view === 'dms-workspace' && !dmsSession)
+    || (view === 'suite-auth' && !authDoor) || (view === 'lawyer-bar' && !digiIdentity);
+  if (view === 'landing' || missingPrereq) return <SuryaLanding dark={dark} setDark={setDark} onDmsLogin={() => { setAuthDoor('dms'); setView('dms-auth'); }} onSuiteRole={r => { setAuthDoor(r); setView('suite-auth'); }} />;
   const openCaseAssistant = (caseId?: string) => { setAiCaseId(caseId); setView('chat'); };
   // Citizen quick options: carry the clicked scenario straight into the chat and auto-send it.
   const askScenario = (query: string) => { setChatSeed(query); setView('chat'); };
@@ -105,9 +160,58 @@ export default function App() {
     setLibrarySelectedId(judgmentId);
     setView('library');
   };
-  return <div className={'app role-' + role + ' ' + (dark ? 'dark' : '')}><aside className={open ? 'open' : ''}><div className="brand"><Scale /> <b>S.U.R.Y.A.<small>Judicial assistance, unified</small></b><button className="close" onClick={() => setOpen(false)}><X /></button></div><p className="role-label">{info[role].name} SPACE</p><nav>{nav[role].map(([label, Icon, page]) => <button key={label} className={view === page ? 'active' : ''} onClick={() => { setView(page as View); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-foot"><ShieldCheck />AI assists, it never decides.<button onClick={() => setView('landing')}>Switch profile <ArrowRight /></button></div></aside>{open && <div className="veil" onClick={() => setOpen(false)} />}<main><header><button className="menu" onClick={() => setOpen(true)}><Menu /></button><button className="back-home" onClick={() => setView('home')}><Home /> Dashboard</button><div className="top-search"><Search /><input placeholder="Search cases, laws, documents..." /></div><div className="top-actions"><button title="Language: English (हिन्दी coming soon in this build)" onClick={() => flash('English selected. Hindi interface arrives in the next build — voice input already supports हिन्दी in the assistant.')}><Languages /> EN</button><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button><button onClick={() => flash('You have ' + cases.filter(c => c.daysLeft <= 7).length + ' upcoming reminders.')}><Bell /></button><span>VS</span></div></header><div className="content">{view === 'home' && <HomeView role={role} go={setView} flash={flash} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} onAskScenario={askScenario} />} {view === 'chat' && <GeminiChat role={role} cases={cases} selectedCaseId={aiCaseId} onSelectCase={setAiCaseId} seedQuery={chatSeed} onSeedConsumed={() => setChatSeed(null)} />} {view === 'cases' && <SmartCases role={role} flash={flash} go={setView} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'calendar' && <CalendarView cases={cases} onAddCase={addCase} go={setView} flash={flash} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'library' && <Library role={role} flash={flash} onReadJudgment={openJudgmentForStudent} selectedId={librarySelectedId} setSelectedId={setLibrarySelectedId} />} {view === 'lawyers' && <SmartLawyers flash={flash} onRequest={sendRequestToLawyer} />} {view === 'clients' && <MyClientsView requests={requests} onAccept={acceptRequest} onDecline={declineRequest} onSend={sendMessage} />} {view === 'requests' && <MyRequestsView requests={requests} onSend={sendMessage} onNew={() => setView('lawyers')} />} {view === 'docs' && <DocumentAnalyzerView cases={cases} flash={flash} />} {view === 'studies' && <StudentStudies records={studyRecords} history={quizHistory} onClearHistory={() => setQuizHistory([])} onRecordQuiz={a => setQuizHistory(prev => [a, ...prev])} onOpenJudgment={id => { setView('studies'); openJudgmentDeep(id); }} />}</div></main>{toast && <div className="toast"><Check /> {toast}</div>}</div>
+  return <div className={'app role-' + role + ' ' + (dark ? 'dark' : '')}><aside className={open ? 'open' : ''}><div className="brand"><Scale /> <b>S.U.R.Y.A.<small>Judicial assistance, unified</small></b><button className="close" onClick={() => setOpen(false)}><X /></button></div><p className="role-label">{info[role].name} SPACE</p><nav>{nav[role].map(([label, Icon, page]) => <button key={label} className={view === page ? 'active' : ''} onClick={() => { setView(page as View); setOpen(false) }}><Icon />{label}</button>)}</nav><div className="side-foot"><ShieldCheck />AI assists, it never decides.<button onClick={() => { setAuthed(null); setRole('citizen'); setView('landing'); flash('Signed out — DigiLocker re-authentication is required to reopen a dashboard.'); }}>Sign out <ArrowRight /></button></div></aside>{open && <div className="veil" onClick={() => setOpen(false)} />}<main><header><button className="menu" onClick={() => setOpen(true)}><Menu /></button><button className="back-home" onClick={() => setView('home')}><Home /> Dashboard</button><div className="top-search"><Search /><input placeholder="Search cases, laws, documents..." /></div><div className="top-actions"><button title="Language: English (हिन्दी coming soon in this build)" onClick={() => flash('English selected. Hindi interface arrives in the next build — voice input already supports हिन्दी in the assistant.')}><Languages /> EN</button><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button><button onClick={() => flash('You have ' + cases.filter(c => c.daysLeft <= 7).length + ' upcoming reminders.')}><Bell /></button><span>VS</span></div></header><div className="content">{view === 'home' && <HomeView role={role} go={setView} flash={flash} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} onAskScenario={askScenario} />} {view === 'chat' && <GeminiChat role={role} cases={cases} selectedCaseId={aiCaseId} onSelectCase={setAiCaseId} seedQuery={chatSeed} onSeedConsumed={() => setChatSeed(null)} />} {view === 'cases' && <SmartCases role={role} flash={flash} go={setView} cases={cases} onAddCase={addCase} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'calendar' && <CalendarView cases={cases} onAddCase={addCase} go={setView} flash={flash} onAskCaseAI={openCaseAssistant} docsFor={docsForCase} onAddDoc={addCaseDoc} onRemoveDoc={removeCaseDoc} />} {view === 'library' && <Library role={role} flash={flash} onReadJudgment={openJudgmentForStudent} selectedId={librarySelectedId} setSelectedId={setLibrarySelectedId} />} {view === 'lawyers' && <SmartLawyers flash={flash} onRequest={sendRequestToLawyer} />} {view === 'clients' && <MyClientsView requests={requests} onAccept={acceptRequest} onDecline={declineRequest} onSend={sendMessage} />} {view === 'requests' && <MyRequestsView requests={requests} onSend={sendMessage} onNew={() => setView('lawyers')} />} {view === 'docs' && <DocumentAnalyzerView cases={cases} flash={flash} />} {view === 'studies' && <StudentStudies records={studyRecords} history={quizHistory} onClearHistory={() => setQuizHistory([])} onRecordQuiz={a => setQuizHistory(prev => [a, ...prev])} onOpenJudgment={id => { setView('studies'); openJudgmentDeep(id); }} />}</div></main>{toast && <div className="toast"><Check /> {toast}</div>}</div>
 }
-function Landing({ role, setRole, start, dark, setDark }: { role: Role, setRole: (r: Role) => void, start: () => void, dark: boolean, setDark: (b: boolean) => void }) { return <div className={'landing ' + (dark ? 'dark' : '')}><div className="tricolor"><i /><i /><i /></div><header><div className="brand"><Scale /><b>S.U.R.Y.A.<small>Smart Unified Resource for Judicial Assistance</small></b></div><button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button></header><section className="landing-hero"><div className="chakra">☸</div><span>WELCOME TO</span><h1>S.U.R.Y.A.</h1><div className="flagline"><i /><i /><i /></div><p>AI-based legal and judicial support platform</p><p className="intro">Legal support becomes clearer, organized, and more accessible — for every citizen, lawyer, and student.</p></section><div className="role-cards">{(Object.keys(info) as Role[]).map(r => { const d = info[r], Icon = d.icon; return <article className={'role-card ' + d.color + (role === r ? ' picked' : '')} key={r} onClick={() => setRole(r)}><div className="illustration"><Icon /><div>⚖</div></div><h2>I am a {d.name}</h2><p>{d.promise}</p><ul>{r === 'citizen' ? <><li>AI legal guidance</li><li>Find verified lawyers</li></> : r === 'lawyer' ? <><li>Intelligent case workspace</li><li>Private document analysis</li></> : <><li>Simple case summaries</li><li>Learn at your own pace</li></>}</ul><button onClick={start}>Continue <ArrowRight /></button></article> })}</div><footer><span><ShieldCheck /> AI provides assistance, not legal advice.</span><span>English · हिन्दी</span></footer></div> }
+function Landing({ role, setRole, start, dark, setDark, goDms }: { role: Role, setRole: (r: Role) => void, start: () => void, dark: boolean, setDark: (b: boolean) => void, goDms: () => void }) {
+  return <div className={'landing dms-landing ' + (dark ? 'dark' : '')}>
+    <div className="tricolor"><i /><i /><i /></div>
+    <header className="gov-topbar">
+      <div className="gov-topbar-left"><Landmark /> भारत सरकार · Government of India (Demo)</div>
+      <div className="gov-topbar-right">
+        <span className="gov-lang">English | हिन्दी</span>
+        <button onClick={() => setDark(!dark)}>{dark ? '☀' : '☾'}</button>
+      </div>
+    </header>
+    <div className="gov-emblem-strip">
+      <div className="gov-emblem-brand">
+        <div className="gov-chakra">☸</div>
+        <div>
+          <b>NyayaVault — Unified Legal &amp; Judicial Records Platform</b>
+          <small>Ministry of Law and Justice (Demo) · National Informatics Centre style interface</small>
+        </div>
+      </div>
+      <div className="gov-strip-links"><a>Home</a><a>Departments</a><a>RTI</a><a>Contact</a></div>
+    </div>
+    <section className="gov-hero">
+      <div>
+        <span className="gov-hero-kicker"><ShieldCheck /> SECURE DIGITAL DOCUMENT MANAGEMENT SYSTEM</span>
+        <h1>One secure record, from the <em>first report</em> to the <em>final judgment</em>.</h1>
+        <p>A unified document management and legal assistance platform for law enforcement, courts, legal departments and the public — with hash-chain integrity, role-based access control and a complete audit trail.</p>
+        <div className="gov-hero-cta">
+          <button className="gov-primary" onClick={goDms}><LockKeyhole /> Sign in to the Document Management System</button>
+          <div className="gov-hero-badges">
+            <span><ShieldCheck /> Role-based access + audit trail</span>
+            <span><Fingerprint /> Blockchain hash integrity</span>
+            <span><FileLock2 /> Encrypted case files</span>
+          </div>
+        </div>
+      </div>
+      <div className="gov-hero-visual">
+        <div className="gov-vault"><LockKeyhole /></div>
+        <small>Authorised personnel only · all activity logged</small>
+      </div>
+    </section>
+    <section className="surya-band">
+      <p className="surya-band-kicker">Public &amp; Professional Legal Assistance — powered by <b>S.U.R.Y.A.</b></p>
+      <p className="surya-band-sub">Citizens need no login. Lawyers and students enter through their role card.</p>
+      <div className="role-cards">{(Object.keys(info) as Role[]).map(r => { const d = info[r], Icon = d.icon; return <article className={'role-card ' + d.color + (role === r ? ' picked' : '')} key={r} onClick={() => setRole(r)}><div className="illustration"><Icon /><div>⚖</div></div><h2>I am a {d.name}</h2><p>{d.promise}</p><ul>{r === 'citizen' ? <><li>AI legal guidance</li><li>Find verified lawyers</li></> : r === 'lawyer' ? <><li>Intelligent case workspace</li><li>Private document analysis</li></> : <><li>Simple case summaries</li><li>Learn at your own pace</li></>}</ul><button onClick={start}>Continue <ArrowRight /></button></article> })}</div>
+    </section>
+    <footer className="gov-footer">
+      <span>© 2026 · Demo prototype for presentation purposes</span>
+      <span><ShieldCheck /> AI assists, it never decides · Website policies · Help · Contact NIC helpdesk</span>
+    </footer>
+  </div>;
+}
 const CITIZEN_RIGHTS = [
   { icon: '📝', title: 'Right to file an FIR', tag: 'CrPC § 154', desc: 'Police must register an FIR for any cognizable offence — refusal is itself actionable. Always take a free copy.' },
   { icon: '✉️', title: 'Legal notice received', tag: 'Reply in time', desc: 'Read it fully, keep the envelope, save proofs, and reply within the stated window — usually 15 to 30 days.' },
@@ -396,7 +500,9 @@ function GeminiChat({ role, cases, selectedCaseId, onSelectCase, seedQuery, onSe
   const [voiceLang, setVoiceLang] = useState<'en-IN' | 'hi-IN'>('en-IN');
   const consumedSeedRef = useRef<string | null>(null);
   const send = async (override?: string) => {
-    const question = (override ?? text).trim();
+    /* `override` is a suggested question from the prompt buttons. A button that calls
+       onClick={send} would otherwise pass its MouseEvent in — guard against that. */
+    const question = (typeof override === 'string' ? override : text).trim();
     if (!question || loading) return;
     setText('');
     setMessages(current => [...current, { role: 'user', text: question }]);
@@ -423,7 +529,7 @@ function GeminiChat({ role, cases, selectedCaseId, onSelectCase, seedQuery, onSe
       ? ['I want to study the top murder cases', 'Show me landmark cases about privacy', 'Which cases deal with electronic evidence?', 'Suggest cases to study on criminal procedure']
       : ['My phone was stolen. What should I do?', 'I lost money in an online UPI fraud', 'What does an FIR mean?'];
   const selected = cases.find(c => c.id === selectedCaseId);
-  return <><div className="chat-head"><Bot /><div><em>S.U.R.Y.A. AI ASSISTANT · CHATBOT</em><h1>{role === 'lawyer' ? 'Your case intelligence partner' : 'Describe your situation in your own words'}</h1><p>{role === 'lawyer' && selected ? `Asking about: ${selected.title}` : 'Chatbot-generated information should be reviewed by a legal professional.'}</p></div></div><div className="smart-chat"><section className="panel chat-workspace">{messages.length === 0 && !loading && <div className="empty-ai"><Sparkles /><h2>How can I help?</h2><p>{role === 'lawyer' ? 'Ask about the selected case, evidence, a hearing, or all of your case records.' : 'Ask a legal-information question in your own words.'}</p></div>}<div className="chat-messages">{messages.map((message, index) => <article className={'chat-message ' + message.role} key={index}><b>{message.role === 'user' ? 'You' : 'S.U.R.Y.A.'}</b><p>{message.text}</p></article>)}{loading && <div className="thinking"><Sparkles /> The chatbot is preparing your response…</div>}</div></section><aside className="prompt-panel">{role === 'lawyer' && <label className="case-context"><b>Case context</b><select value={selectedCaseId || ''} onChange={e => onSelectCase(e.target.value || undefined)}><option value="">All my cases</option>{cases.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>}<h3>Try asking <small>· tap to send</small></h3>{prompts.map(x => <button onClick={() => send(x)} key={x}>{x}<ChevronRight /></button>)}<div><ShieldCheck /><b>Privacy-first</b><p>Do not enter sensitive personal information. Chatbot responses are assistance, not legal advice.</p></div></aside></div><div className="composer"><button className="voice-language" title="Switch voice language" onClick={() => setVoiceLang(voiceLang === 'en-IN' ? 'hi-IN' : 'en-IN')}>{voiceLang === 'en-IN' ? 'EN' : 'हि'}</button><button className={'voice ' + (listening ? 'listening' : '')} title="Voice input" onClick={voice}><Mic /></button><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={listening ? 'Listening… speak now' : role === 'lawyer' ? 'Ask about this case, all your cases, evidence, or hearing prep...' : 'Ask S.U.R.Y.A. anything...'} /><button disabled={loading} onClick={send}><Send /></button></div></>;
+  return <><div className="chat-head"><Bot /><div><em>S.U.R.Y.A. AI ASSISTANT · CHATBOT</em><h1>{role === 'lawyer' ? 'Your case intelligence partner' : 'Describe your situation in your own words'}</h1><p>{role === 'lawyer' && selected ? `Asking about: ${selected.title}` : 'Chatbot-generated information should be reviewed by a legal professional.'}</p></div></div><div className="smart-chat"><section className="panel chat-workspace">{messages.length === 0 && !loading && <div className="empty-ai"><Sparkles /><h2>How can I help?</h2><p>{role === 'lawyer' ? 'Ask about the selected case, evidence, a hearing, or all of your case records.' : 'Ask a legal-information question in your own words.'}</p></div>}<div className="chat-messages">{messages.map((message, index) => <article className={'chat-message ' + message.role} key={index}><b>{message.role === 'user' ? 'You' : 'S.U.R.Y.A.'}</b><p>{message.text}</p></article>)}{loading && <div className="thinking"><Sparkles /> The chatbot is preparing your response…</div>}</div></section><aside className="prompt-panel">{role === 'lawyer' && <label className="case-context"><b>Case context</b><select value={selectedCaseId || ''} onChange={e => onSelectCase(e.target.value || undefined)}><option value="">All my cases</option>{cases.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>}<h3>Try asking <small>· tap to send</small></h3>{prompts.map(x => <button onClick={() => send(x)} key={x}>{x}<ChevronRight /></button>)}<div><ShieldCheck /><b>Privacy-first</b><p>Do not enter sensitive personal information. Chatbot responses are assistance, not legal advice.</p></div></aside></div><div className="composer"><button className="voice-language" title="Switch voice language" onClick={() => setVoiceLang(voiceLang === 'en-IN' ? 'hi-IN' : 'en-IN')}>{voiceLang === 'en-IN' ? 'EN' : 'हि'}</button><button className={'voice ' + (listening ? 'listening' : '')} title="Voice input" onClick={voice}><Mic /></button><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={listening ? 'Listening… speak now' : role === 'lawyer' ? 'Ask about this case, all your cases, evidence, or hearing prep...' : 'Ask S.U.R.Y.A. anything...'} /><button disabled={loading} onClick={() => send()} aria-label="Send question"><Send /></button></div></>;
 }
 function SmartCases({ role, flash, go, cases, onAddCase, onAskCaseAI, docsFor, onAddDoc, onRemoveDoc }: { role: Role, flash: (x: string) => void, go: (v: View) => void, cases: CaseRecord[], onAddCase: (c: CaseRecord) => void, onAskCaseAI: (caseId?: string) => void, docsFor: (caseId: string) => CaseFileItem[], onAddDoc: (caseId: string, item: CaseFileItem) => void, onRemoveDoc: (caseId: string, docId: string) => void }) {
   return <Cases role={role} flash={flash} go={go} cases={cases} onAddCase={onAddCase} onAskCaseAI={onAskCaseAI} docsFor={docsFor} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc} />;

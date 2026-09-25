@@ -58,20 +58,80 @@ const VW = 640;
 const VH = 430;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-/** Clean structural layout: the hub sits center, well-connected nodes form the inner ring, leaves go outside. */
-function computeTidyPositions(ns: { id: string }[], nbrs: Record<string, Set<string>>): Record<string, Pos> {
+/**
+ * Force-directed layout (Fruchterman–Reingold style).
+ * Repulsion spreads every node apart; springs along edges pull connected
+ * nodes together; light gravity keeps the graph centered. The result shows
+ * ALL interconnections clearly — clusters form naturally around the parties
+ * they involve, instead of everything radiating from one center node.
+ * `seed` carries the hand-tuned/AI coordinates so the sim starts close and
+ * only needs to untangle, not explore.
+ */
+function computeForcePositions(
+  ns: { id: string }[],
+  edges: { from: string; to: string }[],
+  seed: Record<string, Pos> = {},
+): Record<string, Pos> {
   if (!ns.length) return {};
-  const center = { x: VW / 2, y: VH / 2 - 14 };
-  const degree = (id: string) => nbrs[id]?.size ?? 0;
-  const hub = [...ns].sort((a, b) => degree(b.id) - degree(a.id))[0];
-  const pos: Record<string, Pos> = { [hub.id]: center };
-  const place = (list: { id: string }[], radius: number, stretch: number, start: number) =>
-    list.forEach((n, i) => {
-      const a = start + (i * 2 * Math.PI) / list.length;
-      pos[n.id] = { x: clamp(Math.round(center.x + Math.cos(a) * radius * stretch), 46, VW - 46), y: clamp(Math.round(center.y + Math.sin(a) * radius), 46, VH - 40) };
+  const ids = ns.map(n => n.id);
+  const pos: Record<string, Pos> = {};
+  ids.forEach((id, i) => {
+    const sd = seed[id];
+    if (sd && Number.isFinite(sd.x) && Number.isFinite(sd.y)) {
+      // Rescale the seed from its original coordinate space to fill the canvas:
+      // keeps the topology hint but gives the sim room to separate clusters.
+      const sx = 58 + ((sd.x - 46) / Math.max(1, VW - 92)) * (VW - 116);
+      const sy = 52 + ((sd.y - 40) / Math.max(1, VH - 86)) * (VH - 98);
+      pos[id] = { x: clamp(sx, 58, VW - 58), y: clamp(sy, 52, VH - 46) };
+    } else {
+      const a = (i / ids.length) * 2 * Math.PI;
+      pos[id] = { x: VW / 2 + Math.cos(a) * VW * 0.3, y: VH / 2 + Math.sin(a) * VH * 0.3 };
+    }
+  });
+  const k = Math.sqrt((VW * VH) / Math.max(4, ns.length)) * 2.4;   // ideal edge length
+  let temp = Math.min(90, VW / 6);                                  // max step per iteration
+  for (let it = 0; it < 220; it++) {
+    const disp: Record<string, { x: number; y: number }> = {};
+    ids.forEach(id => { disp[id] = { x: 0, y: 0 }; });
+    // pairwise repulsion
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = pos[ids[i]], b = pos[ids[j]];
+        let dx = a.x - b.x, dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 4) { dx = 0.5 - Math.random(); dy = 0.5 - Math.random(); d2 = 4; }
+        const d = Math.sqrt(d2);
+        const f = (k * k) / d2 * 2.2;
+        disp[ids[i]].x += (dx / d) * f;
+        disp[ids[i]].y += (dy / d) * f;
+        disp[ids[j]].x -= (dx / d) * f;
+        disp[ids[j]].y -= (dy / d) * f;
+      }
+    }
+    // spring attraction along real edges
+    edges.forEach(e => {
+      const a = pos[e.from], b = pos[e.to];
+      if (!a || !b) return;
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+      const f = (d * d) / k;
+      disp[e.from].x -= (dx / d) * f;
+      disp[e.from].y -= (dy / d) * f;
+      disp[e.to].x += (dx / d) * f;
+      disp[e.to].y += (dy / d) * f;
     });
-  place(ns.filter(n => n.id !== hub.id && degree(n.id) > 1), 112, 1.4, -Math.PI / 2);
-  place(ns.filter(n => n.id !== hub.id && degree(n.id) <= 1), 176, 1.3, -Math.PI / 2 + Math.PI / Math.max(1, ns.length - 1));
+    // gravity + temperature-limited step
+    ids.forEach(id => {
+      const p = pos[id], dv = disp[id];
+      dv.x += (VW / 2 - p.x) * 0.03;
+      dv.y += (VH / 2 - p.y) * 0.03;
+      const d = Math.max(1, Math.sqrt(dv.x * dv.x + dv.y * dv.y));
+      const lim = Math.min(d, temp);
+      p.x = clamp(p.x + (dv.x / d) * lim, 58, VW - 58);
+      p.y = clamp(p.y + (dv.y / d) * lim, 52, VH - 46);
+    });
+    temp = Math.max(1.5, temp * 0.95);
+  }
   return pos;
 }
 
@@ -104,12 +164,10 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
     return map;
   }, [nodes, edges]);
 
-  const defaults = useMemo(() => {
-    const base = Object.fromEntries(nodes.map(n => [n.id, { x: n.x, y: n.y }])) as Record<string, Pos>;
-    // Nodes without coordinates (e.g. an AI-generated graph) fall back to the structural layout.
-    if (nodes.some(n => !Number.isFinite(n.x) || !Number.isFinite(n.y))) return computeTidyPositions(nodes, neighbors);
-    return base;
-  }, [nodes, neighbors]);
+  const defaults = useMemo(
+    () => computeForcePositions(nodes, edges, Object.fromEntries(nodes.map(n => [n.id, { x: n.x, y: n.y }])) as Record<string, Pos>),
+    [nodes, edges],
+  );
   const positions = { ...defaults, ...layout[caseData.id] };
 
   const selectedNode = selected ? nodeById[selected] : undefined;
@@ -165,7 +223,7 @@ export function CaseGraph({ caseData }: { caseData: GraphCase }) {
   };
 
   const tidyLayout = () => {
-    setLayout(prev => ({ ...prev, [caseData.id]: computeTidyPositions(nodes, neighbors) }));
+    setLayout(prev => ({ ...prev, [caseData.id]: computeForcePositions(nodes, edges) }));
   };
 
   const askAI = async () => {
