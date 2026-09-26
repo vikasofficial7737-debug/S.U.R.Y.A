@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Archive, ArrowLeft, Briefcase, Check, ChevronDown, ChevronRight, Clock3, Database, Download, Eye, FileSearch, FileText, Fingerprint, FolderClosed, Gavel, History, KeyRound, Link, LockKeyhole, Menu, Network, Plus, Search, Share2, ShieldAlert, ShieldCheck, Upload, UserCog, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Archive, ArrowLeft, Bell, Briefcase, Check, ChevronDown, ChevronRight, Clock3, Database, Download, Eye, FileSearch, FileText, Fingerprint, FolderClosed, Gavel, History, KeyRound, Link, LockKeyhole, Menu, MessageSquare, Network, Plus, Search, Send, Share2, ShieldAlert, ShieldCheck, Upload, UserCog, UserPlus, Users, X } from 'lucide-react';
 import './DMSWorkspace.css';
 import { getBridgeAccessEvents } from '../data/bridgeAudit';
 import { anchorDocumentVersion } from '../lib/anchor';
+import { loadCollabStore, saveCollabStore, onCollabChange, scopedCaseIds, SCOPE_NOTE, OFFICER_DIRECTORY, findOfficer, roleForName, nowStamp, type CollabStore, type DocEvent, type DocEventAction, type Collaborator, type ChatMessage, type DmsNotification } from '../data/collab';
 import { RoleDashboard } from './DmsDashboards';
 import { EvidenceModule } from './DmsEvidence';
 import { VersionHistoryPanel } from './DmsVersioning';
@@ -16,6 +17,17 @@ export type { DmsDocument };
 
 export type DmsRole = 'Investigating Officer' | 'Forensic Officer' | 'Court / Registrar Staff' | 'Legal Department Officer' | 'Records / Compliance Officer' | 'System Admin';
 export type DmsPage = 'profile' | 'dashboard' | 'cases' | 'repository' | 'evidence' | 'case' | 'upload' | 'access' | 'audit' | 'integrity' | 'ledger' | 'sharing' | 'search' | 'compliance' | 'admin';
+
+/* ---------------------------------------------------------------
+   Collaboration + doc-history store (module-level so chat messages,
+   invites and notifications stay in sync across components without
+   prop drilling through every page). Persisted to localStorage so the
+   invite → switch user → accept flow works across reloads and, via
+   BroadcastChannel, across open tabs live. In production these are
+   rows in case_collaborators / case_messages / dms_notifications /
+   document_events (supabase/schema-complete.sql).
+--------------------------------------------------------------- */
+const COLLAB: CollabStore = loadCollabStore();
 export type Audit = { id:string; at:string; actor:string; action:string; target:string; department:string };
 export type CustodyEvent = { id:string; at:string; from:string; to:string; reason:string; blockIndex:number };
 export type EvidenceItem = { id:string; evId:string; caseId:string; type:string; description:string; collectedBy:string; collectedAt:string; location:string; custodian:string; status:'In custody'|'Under examination'|'With court'|'Returned'; integrity:'Verified'|'Pending'|'Failed'; hash:string; custody:CustodyEvent[] };
@@ -49,8 +61,77 @@ export function DMSWorkspace({session,onExit}:{session?:DmsSession|null;onExit:(
  const [docs,setDocs]=useState<DmsDocument[]>(()=>[...docsForCase('CR/124/2026'),...docsForCase('CV/081/2026'),...docsForCase('CY/042/2026')]);
  const [audit,setAudit]=useState<Audit[]>([{id:'a7',at:'19 Sep 2026 · 12:14',actor:'SI R. Sharma',action:'Uploaded document',target:'FIR_124_2026.pdf',department:'Jaipur Police'},{id:'a6',at:'19 Sep 2026 · 11:50',actor:'SI R. Sharma',action:'Registered evidence with chain of custody',target:'Mobile handset EV-2026-00312',department:'Jaipur Police'},{id:'a5',at:'19 Sep 2026 · 10:58',actor:'SI R. Sharma',action:'Digitized FIR and ran OCR verification',target:'FIR_124_2026.pdf',department:'Jaipur Police'},{id:'a4',at:'19 Sep 2026 · 10:12',actor:'SI R. Sharma',action:'Opened case file',target:'CR/124/2026',department:'Jaipur Police'},{id:'a1',at:'19 Sep 2026 · 11:38',actor:'Dr. R. Iyer',action:'Verified document',target:'Forensic_Report_17.pdf',department:'Forensic Lab'},{id:'a2',at:'19 Sep 2026 · 11:02',actor:'Dr. R. Iyer',action:'Uploaded document',target:'CCTV_Footage_Certificate.pdf',department:'Forensic Lab'},{id:'a3',at:'19 Sep 2026 · 10:27',actor:'Registrar A. Kapoor',action:'Granted read-only access',target:'CR/124/2026',department:'Court Registry'}]);
  const [evidence,setEvidence]=useState<EvidenceItem[]>(seedEvidence);
- const [selectedCase,setSelectedCase]=useState('CR/124/2026');
- const [mobile,setMobile]=useState(false),[toast,setToast]=useState('');
+  const [selectedCase,setSelectedCase]=useState('CR/124/2026');
+  const [mobile,setMobile]=useState(false),[toast,setToast]=useState('');
+
+  /* ---- Shared case workspace: collaborators, chat, notifications, doc events ----
+     State lives at the top so every module (upload, repository, case workspace,
+     doc viewer) records into the same store; persistence + cross-tab sync keep
+     the invite → notification → accept loop working across users in one browser. */
+  const [store,setState]=useState<CollabStore>(COLLAB);
+  const pushStore=(next:CollabStore)=>{Object.assign(COLLAB,next);saveCollabStore(COLLAB);setState({...COLLAB});};
+  const myEmpId=session?.officerId||'—';
+  const myNotifications=store.notifications.filter(n=>!n.forEmpId||n.forEmpId===myEmpId||role==='System Admin');
+  const unreadCount=myNotifications.filter(n=>!n.read).length;
+  const [bellOpen,setBellOpen]=useState(false);
+  const [bellTab,setBellTab]=useState<'all'|'requests'>('all');
+  const [inviteFor,setInviteFor]=useState<string|null>(null);
+  /* Pending invites addressed to me — banner + bell badge count. */
+  const pendingCollab=myNotifications.filter(n=>n.kind==='colab-request'&&!n.read&&COLLAB.collaborators.find(c=>c.id===n.collaboratorId)?.status==='pending').length;
+
+  /* Document history: record an event on a document (open, share, verify…). */
+  const pushDocEvent=(docId:string,docName:string,caseId:string,action:DocEventAction,detail?:string)=>{
+    const ev:DocEvent={id:crypto.randomUUID(),docId,docName,caseId,at:nowStamp(),by:session?.name||role,byRole:role,action,detail};
+    pushStore({...COLLAB,docEvents:[ev,...COLLAB.docEvents]});
+  };
+
+  /* ---- Notifications ---- */
+  const notify=(n:Omit<DmsNotification,'id'|'at'|'read'>)=>{pushStore({...COLLAB,notifications:[{...n,id:crypto.randomUUID(),at:nowStamp(),read:false},...COLLAB.notifications]});};
+  const markAllRead=()=>{pushStore({...COLLAB,notifications:COLLAB.notifications.map(n=>({...n,read:true}))});};
+  const markRead=(id:string)=>{pushStore({...COLLAB,notifications:COLLAB.notifications.map(n=>n.id===id?{...n,read:true}:n)});};
+
+  /* ---- Collaborators (shared case workspace) ---- */
+  const inviteCollaborator=(caseId:string,empId:string,inviteeRole:DmsRole)=>{
+    const off=findOfficer(empId);
+    if(!off){flash('No officer with that employee ID. Try IO-2026-0142, FO-2026-0451, CR-2026-0087, LO-2026-0219, RC-2026-0104 or SA-2026-0001.');return false;}
+    if(off.role!==inviteeRole){flash('Role mismatch: '+off.name+' is provisioned as '+off.role+' — the invite was not sent.');return false;}
+    if(off.empId===myEmpId){flash('That is your own employee ID — you are already in this workspace.');return false;}
+    if(off.status==='Suspended'){flash(off.name+' is suspended — collaboration invite blocked and the attempt was logged.');log('Blocked collaboration invite (suspended officer)',caseId+' · '+off.name);return false;}
+    if(COLLAB.collaborators.some(c=>c.caseId===caseId&&c.empId===off.empId&&c.status!=='declined')){flash(off.name+' is already on this case workspace.');return false;}
+    const invite:Collaborator={id:crypto.randomUUID(),caseId,empId:off.empId,name:off.name,role:off.role,department:off.department,invitedBy:session?.name||role,invitedById:myEmpId,invitedAt:nowStamp(),status:'pending'};
+    pushStore({...COLLAB,collaborators:[invite,...COLLAB.collaborators]});
+    notify({kind:'colab-request',title:'Collaboration request',body:(session?.name||role)+' invited you to join the shared workspace for '+caseId+'.',caseId,collaboratorId:invite.id,forEmpId:off.empId});
+    log('Sent collaboration invite',caseId+' → '+off.name+' ('+off.role+')');
+    flash('Collaboration request sent to '+off.name+' ('+off.role+'). It will appear in their notification bell.');
+    return true;
+  };
+  const respondInvite=(collabId:string,accept:boolean)=>{
+    const inv=COLLAB.collaborators.find(c=>c.id===collabId);if(!inv)return;
+    pushStore({...COLLAB,collaborators:COLLAB.collaborators.map(c=>c.id===collabId?{...c,status:accept?'accepted':'declined',respondedAt:nowStamp()}:c)});
+    if(accept){
+      // Accepting joins the shared workspace: the case is added to the invitee's
+      // active caseload (role-based grants) for this session.
+      setGrants(g=>({...g,[role]:[...(g[role]||[]),inv.caseId]}));
+      const sysMsg:ChatMessage={id:crypto.randomUUID(),caseId:inv.caseId,from:'System',fromRole:'System',fromId:'system',text:(session?.name||'Officer')+' ('+role+') accepted the collaboration — now part of the shared workspace.',at:nowStamp(),system:true};
+      pushStore({...COLLAB,messages:[...COLLAB.messages,sysMsg]});
+    }
+    notify({kind:accept?'colab-accepted':'colab-declined',title:accept?'Collaboration accepted':'Collaboration declined',body:(session?.name||role)+' '+(accept?'accepted':'declined')+' the shared workspace for '+inv.caseId+'.',caseId:inv.caseId,forEmpId:inv.invitedById});
+    log(accept?'Accepted collaboration — joined shared case workspace':'Declined collaboration invite',inv.caseId+' · invited by '+inv.invitedBy);
+    flash(accept?'You joined the shared workspace for '+inv.caseId+'.':'Invite declined.');
+  };
+  const collaboratorsFor=(caseId:string)=>COLLAB.collaborators.filter(c=>c.caseId===caseId&&c.status!=='declined');
+  const chatFor=(caseId:string)=>COLLAB.messages.filter(m=>m.caseId===caseId);
+
+  /* Shared-workspace chat: messages carry the sender's name + role, keeping the
+     channel case-scoped and auditable alongside the document history. */
+  const sendChat=(caseId:string,text:string)=>{
+    const msg:ChatMessage={id:crypto.randomUUID(),caseId,from:session?.name||role,fromRole:role,fromId:myEmpId,text,at:nowStamp()};
+    pushStore({...COLLAB,messages:[...COLLAB.messages,msg]});
+  };
+
+  /* Per-document history modal (who uploaded/acted, when — shown platform-wide). */
+  const [historyDoc,setHistoryDoc]=useState<{name:string;caseId:string}|null>(null);
+  const openDocHistory=(name:string,caseId:string)=>setHistoryDoc({name,caseId});
  /* Access control: which cases this officer may open. Non-admin roles are limited
     to their assigned caseload; System Admin may enter any case and approves
     cross-case access requests. */
@@ -91,14 +172,38 @@ export function DMSWorkspace({session,onExit}:{session?:DmsSession|null;onExit:(
  const visiblePages=pages.filter(x=>allowedPages.includes(x.id));
  useEffect(()=>{if(page!=='profile'&&!allowedPages.includes(page))setPage('dashboard')},[page,role]);
  useEffect(()=>{ensureGenesis(session?.name||'Platform Administration',session?.officerId||'AD-2026-0001')},[]);
- const upload=async(name:string,type:string,sign:boolean)=>{const realHash=await sha256Hex(name+'|'+selectedCase+'|'+now()+'|'+crypto.randomUUID());const doc:DmsDocument={id:crypto.randomUUID(),name,type,caseId:selectedCase,department:deptFor(role),uploadedBy:session?.name||role,uploadedAt:now(),status:'Pending verification',version:1,hash:realHash,signed:sign,legalHold:false,sharedWithSurya:false};setDocs(x=>[doc,...x]);const anchored=await anchorDocumentVersion({docRef:name,caseRef:selectedCase,actor:session?.name||role,actorRole:role});if(!anchored.ok)flash('Registered locally — anchoring will retry when the backend is reachable.');await appendBlock({action:'DOCUMENT_REGISTERED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:selectedCase,documentName:name,payload:realHash});log('Uploaded & classified document',name+' · '+selectedCase);flash('Document digitized, SHA-256 hashed, and anchored '+(anchored.demo?'to the demo ledger':'on Polygon Amoy')+'.');setPage('repository')};
- const setHold=(id:string)=>{setDocs(x=>x.map(d=>d.id===id?{...d,legalHold:!d.legalHold}:d));const d=docs.find(x=>x.id===id);if(d){log(d.legalHold?'Released legal hold':'Applied legal hold',d.name);appendBlock({action:d.legalHold?'LEGAL_HOLD_RELEASED':'LEGAL_HOLD_APPLIED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:'hold|'+d.name+'|'+Date.now()})}};
- const share=(id:string)=>{setDocs(x=>x.map(d=>d.id===id?{...d,sharedWithSurya:true}:d));const d=docs.find(x=>x.id===id);if(d){logAccess(d.caseId,d.name,'shared','Time-bound read-only share');log('Created expiring redacted share',d.name);appendBlock({action:'SHARE_CREATED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:'share|'+d.name+'|72h'})}flash('Read-only share created. Expires in 72 hours.');};
+ /* Cross-tab live sync: an invite sent in tab A rings the bell in tab B. */
+ useEffect(()=>{onCollabChange(()=>setState({...loadCollabStore()}))},[]);
+ /* Every upload records the document-history origin event: who, when, what. */
+ const upload=async(name:string,type:string,sign:boolean,caseId:string)=>{const realHash=await sha256Hex(name+'|'+caseId+'|'+now()+'|'+crypto.randomUUID());const doc:DmsDocument={id:crypto.randomUUID(),name,type,caseId,department:deptFor(role),uploadedBy:session?.name||role,uploadedAt:now(),status:'Pending verification',version:1,hash:realHash,signed:sign,legalHold:false,sharedWithSurya:false};setDocs(x=>[doc,...x]);pushDocEvent(doc.id,name,caseId,'uploaded','v1 · SHA-256 '+(realHash.slice(0,12))+'… anchored');const anchored=await anchorDocumentVersion({docRef:name,caseRef:caseId,actor:session?.name||role,actorRole:role});if(!anchored.ok)flash('Registered locally — anchoring will retry when the backend is reachable.');await appendBlock({action:'DOCUMENT_REGISTERED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:caseId,documentName:name,payload:realHash});log('Uploaded & classified document',name+' · '+caseId);flash('Document digitized, SHA-256 hashed, and anchored '+(anchored.demo?'to the demo ledger':'on Polygon Amoy')+'.');setPage('repository')};
+ const setHold=(id:string)=>{setDocs(x=>x.map(d=>d.id===id?{...d,legalHold:!d.legalHold}:d));const d=docs.find(x=>x.id===id);if(d){pushDocEvent(d.id,d.name,d.caseId,'legal-hold',d.legalHold?'Legal hold released':'Legal hold applied');log(d.legalHold?'Released legal hold':'Applied legal hold',d.name);appendBlock({action:d.legalHold?'LEGAL_HOLD_RELEASED':'LEGAL_HOLD_APPLIED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:'hold|'+d.name+'|'+Date.now()})}};
+ const share=(id:string)=>{setDocs(x=>x.map(d=>d.id===id?{...d,sharedWithSurya:true}:d));const d=docs.find(x=>x.id===id);if(d){pushDocEvent(d.id,d.name,d.caseId,'shared','Time-bound read-only share · 72h');logAccess(d.caseId,d.name,'shared','Time-bound read-only share');log('Created expiring redacted share',d.name);appendBlock({action:'SHARE_CREATED',actor:session?.name||role,actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:'share|'+d.name+'|72h'})}flash('Read-only share created. Expires in 72 hours.');};
  const registerEvidence=async(e:Omit<EvidenceItem,'id'|'custody'|'hash'|'integrity'>)=>{const blk=await appendBlock({action:'EVIDENCE_TRANSFER',actor:session?.name||role,actorId:session?.officerId||'—',caseId:e.caseId,documentName:e.evId+' ('+e.type+')',payload:'register|'+e.evId+'|'+e.type+'|'+e.collectedBy});const item:EvidenceItem={...e,id:crypto.randomUUID(),hash:blk.hash.slice(0,16)+'…',integrity:'Verified',custody:[{id:crypto.randomUUID(),at:e.collectedAt,from:'—',to:e.collectedBy,reason:'Collected & registered',blockIndex:blk.index}]};setEvidence(x=>[item,...x]);log('Registered evidence',e.evId);flash('Evidence registered and anchored to the integrity ledger.')};
  const transferEvidence=async(id:string,to:string,reason:string)=>{const ev=evidence.find(x=>x.id===id);if(!ev)return;const blk=await appendBlock({action:'EVIDENCE_TRANSFER',actor:session?.name||role,actorId:session?.officerId||'—',caseId:ev.caseId,documentName:ev.evId+' ('+ev.type+')',payload:'transfer|'+ev.evId+'|'+ev.custodian+'->'+to+'|'+reason});setEvidence(x=>x.map(e=>e.id===id?{...e,custodian:to,custody:[...e.custody,{id:crypto.randomUUID(),at:now(),from:e.custodian,to,reason,blockIndex:blk.index}]}:e));log('Evidence custody transfer',ev.evId+' → '+to);flash('Custody transfer recorded on the integrity ledger.')};
  const visibleEvidence=evidence.filter(e=>role==='System Admin'||role==='Records / Compliance Officer'||myCases.includes(e.caseId));
- return <div className="dms-app"><aside className={mobile?'dms-side show':'dms-side'}><div className="dms-brand"><div><LockKeyhole/></div><b>S.U.R.Y.A.<small>Secure DMS · Unified platform</small></b><button onClick={()=>setMobile(false)}><X/></button></div><label className="dept-label">{session?`${session.name.toUpperCase()} · ${session.role}`:'ACTIVE PLATFORM ROLE'}</label><nav><button className={page==='profile'?'active':''} onClick={()=>{setPage('profile');setMobile(false)}}><UserCog/>My Service Details</button>{visiblePages.map(x=>{const I=x.icon;return <button key={x.id} className={page===x.id?'active':''} onClick={()=>{setPage(x.id);setMobile(false)}}><I/>{x.label}</button>})}</nav><div className="dms-side-note"><ShieldCheck/>Demo controls simulate RBAC, integrity, and audit logging.<button onClick={onExit}><ArrowLeft/>Open Assistance Suite</button></div></aside>{mobile&&<div className="dms-scrim" onClick={()=>setMobile(false)}/>}<main><header className="dms-header"><button className="dms-menu" onClick={()=>setMobile(true)}><Menu/></button><div><span>S.U.R.Y.A. · SECURE DIGITAL RECORD</span><b>{pages.find(x=>x.id===page)?.label}</b></div><div className="dms-head-actions"><span><ShieldCheck/> {session?`${session.name} · ${session.department||'Demo'} · Encrypted workspace`:'Encrypted demo workspace'}</span><button onClick={onExit}>S.U.R.Y.A. Suite <ArrowLeft/></button></div></header><div className="dms-content">{page==='profile'&&<ProfileView session={session} onBack={goDashboard}/>}{page==='dashboard'&&<RoleDashboard docs={docs} audit={audit} setPage={setPage} role={role} sessionName={session?.name}/>} {page==='cases'&&<ActiveCases role={role} docs={docs} evidence={visibleEvidence} goBack={goDashboard} openCase={openCase} canOpenCase={canOpenCase} onRequest={submitAccessRequest} openGraph={setGraphCaseId}/>} {page==='repository'&&<Repository docs={docs} goBack={goDashboard} openCase={openCase} canOpenCase={canOpenCase} onRequest={submitAccessRequest} openGraph={setGraphCaseId}/>} {page==='evidence'&&<EvidenceModule goBack={goDashboard} session={session} evidence={visibleEvidence} onRegister={registerEvidence} onTransfer={transferEvidence} openLedger={()=>setPage('ledger')}/>} {page==='case'&&<CaseWorkspace session={session} role={role} docs={docs.filter(d=>d.caseId===selectedCase)} caseData={caseById(selectedCase)} evidence={evidence.filter(e=>e.caseId===selectedCase)} setPage={setPage} share={share} log={log} setDocs={setDocs} flash={flash} logAccess={logAccess} canOpenCase={canOpenCase} onRequest={submitAccessRequest}/>} {page==='upload'&&<UploadDigitize goBack={goDashboard} onUpload={upload} targetCase={selectedCase}/>} {page==='access'&&<AccessControl goBack={goDashboard} role={role} log={log} flash={flash}/>} {page==='audit'&&<AuditTrail goBack={goDashboard} audit={audit}/>} {page==='integrity'&&<Integrity goBack={goDashboard} session={session} docs={docs} log={log} flash={flash}/>} {page==='ledger'&&<LedgerExplorer goBack={goDashboard} flash={flash}/>} {page==='sharing'&&<Sharing goBack={goDashboard} docs={docs} share={share}/>} {page==='search'&&<SemanticSearch goBack={goDashboard} docs={docs} openCase={openCase} log={log} canOpenCase={canOpenCase}/>} {page==='compliance'&&<Compliance goBack={goDashboard} docs={docs} setHold={setHold}/>} {page==='admin'&&<Admin goBack={goDashboard} role={role} flash={flash} session={session} accessRequests={accessRequests} decideAccessRequest={decideAccessRequest} accessHistory={accessHistory}/>}</div></main>{toast&&<div className="dms-toast"><Check/>{toast}</div>}
+ return <div className="dms-app"><aside className={mobile?'dms-side show':'dms-side'}><div className="dms-brand"><div><LockKeyhole/></div><b>S.U.R.Y.A.<small>Secure DMS · Unified platform</small></b><button onClick={()=>setMobile(false)}><X/></button></div><label className="dept-label">{session?`${session.name.toUpperCase()} · ${session.role}`:'ACTIVE PLATFORM ROLE'}</label><nav><button className={page==='profile'?'active':''} onClick={()=>{setPage('profile');setMobile(false)}}><UserCog/>My Service Details</button>{visiblePages.map(x=>{const I=x.icon;return <button key={x.id} className={page===x.id?'active':''} onClick={()=>{setPage(x.id);setMobile(false)}}><I/>{x.label}</button>})}</nav><div className="dms-side-note"><ShieldCheck/>Demo controls simulate RBAC, integrity, and audit logging.<button onClick={onExit}><ArrowLeft/>Open Assistance Suite</button></div></aside>{mobile&&<div className="dms-scrim" onClick={()=>setMobile(false)}/>}<main><header className="dms-header"><button className="dms-menu" onClick={()=>setMobile(true)}><Menu/></button><div><span>S.U.R.Y.A. · SECURE DIGITAL RECORD</span><b>{pages.find(x=>x.id===page)?.label}</b></div><div className="dms-head-actions"><span><ShieldCheck/> {session?`${session.name} · ${session.department||'Demo'} · Encrypted workspace`:'Encrypted demo workspace'}</span><div className="bell-wrap"><button className={'bell-btn'+(bellOpen?' on':'')} title="Notifications" onClick={()=>{setBellOpen(o=>!o);if(!bellOpen)setBellTab('all');}}><Bell/><span className="bell-count">{unreadCount}</span></button>
+   {bellOpen&&<div className="bell-panel">
+     <div className="bell-tabs"><button className={!bellTab||bellTab==='all'?'on':''} onClick={()=>setBellTab('all')}>All</button><button className={bellTab==='requests'?'on':''} onClick={()=>setBellTab('requests')}>Requests{unreadCount>0?' · '+unreadCount:''}</button><button className="bell-clear" onClick={markAllRead}>Mark all read</button></div>
+     <div className="bell-list">
+       {(bellTab==='requests'?myNotifications.filter(n=>n.kind==='colab-request'&&n.collaboratorId&&!n.read):myNotifications).map(n=>{
+        const pending=COLLAB.collaborators.find(c=>c.id===n.collaboratorId);
+        const actionable=n.kind==='colab-request'&&n.collaboratorId&&pending?.status==='pending';
+        return <div key={n.id} className={'bell-item'+(n.read?'':' unread')}>
+         <div><b>{n.title}</b><p>{n.body}</p><small>{n.at}</small></div>
+         {actionable
+           ? <div className="bell-actions"><button onClick={()=>{markRead(n.id);respondInvite(n.collaboratorId!,true);}}><Check/>Accept</button><button onClick={()=>{markRead(n.id);respondInvite(n.collaboratorId!,false);}}><X/>Decline</button></div>
+           : n.kind==='colab-request'
+             ? <small className="bell-done">{pending?.status==='accepted'?'✓ accepted':pending?.status==='declined'?'✗ declined':'handled'}</small>
+             : null}
+       </div>;})}
+       {myNotifications.length===0&&<p className="bell-empty">No notifications yet. Collaboration requests arrive here.</p>}
+     </div>
+   </div>}
+  </div><button onClick={onExit}>S.U.R.Y.A. Suite <ArrowLeft/></button></div></header><div className="dms-content">{page==='profile'&&<ProfileView session={session} onBack={goDashboard}/>}{page==='dashboard'&&<RoleDashboard docs={docs} audit={audit} setPage={setPage} role={role} sessionName={session?.name}/>} {page==='cases'&&<ActiveCases role={role} docs={docs} evidence={visibleEvidence} goBack={goDashboard} openCase={openCase} canOpenCase={canOpenCase} onRequest={submitAccessRequest} openGraph={setGraphCaseId}/>} {page==='repository'&&<Repository docs={docs} goBack={goDashboard} openCase={openCase} canOpenCase={canOpenCase} onRequest={submitAccessRequest} openGraph={setGraphCaseId} docEvents={store.docEvents} onOpenDocHistory={openDocHistory}/>} {page==='evidence'&&<EvidenceModule goBack={goDashboard} session={session} evidence={visibleEvidence} onRegister={registerEvidence} onTransfer={transferEvidence} openLedger={()=>setPage('ledger')}/>} {page==='case'&&<CaseWorkspace session={session} role={role} docs={docs.filter(d=>d.caseId===selectedCase)} caseData={caseById(selectedCase)} evidence={evidence.filter(e=>e.caseId===selectedCase)} setPage={setPage} share={share} log={log} setDocs={setDocs} flash={flash} logAccess={logAccess} canOpenCase={canOpenCase} onRequest={submitAccessRequest} onOpenDocHistory={openDocHistory} pushDocEvent={pushDocEvent} collaborators={collaboratorsFor(selectedCase)} chat={chatFor(selectedCase)} onSendChat={sendChat} onInvite={setInviteFor} myEmpId={myEmpId} myName={session?.name||role} myRole={role}/>} {page==='upload'&&<UploadDigitize goBack={goDashboard} onUpload={upload} role={role} defaultCase={selectedCase} extraCases={myCases}/>} {page==='access'&&<AccessControl goBack={goDashboard} role={role} log={log} flash={flash}/>} {page==='audit'&&<AuditTrail goBack={goDashboard} audit={audit}/>} {page==='integrity'&&<Integrity goBack={goDashboard} session={session} docs={docs} log={log} flash={flash} onOpenDocHistory={openDocHistory}/>} {page==='ledger'&&<LedgerExplorer goBack={goDashboard} flash={flash}/>} {page==='sharing'&&<Sharing goBack={goDashboard} docs={docs} share={share}/>} {page==='search'&&<SemanticSearch goBack={goDashboard} docs={docs} openCase={openCase} log={log} canOpenCase={canOpenCase}/>} {page==='compliance'&&<Compliance goBack={goDashboard} docs={docs} setHold={setHold} onOpenDocHistory={openDocHistory}/>} {page==='admin'&&<Admin goBack={goDashboard} role={role} flash={flash} session={session} accessRequests={accessRequests} decideAccessRequest={decideAccessRequest} accessHistory={accessHistory}/>}</div></main>{toast&&<div className="dms-toast"><Check/>{toast}</div>}
  {graphCaseId&&<GraphModal caseId={graphCaseId} onClose={()=>setGraphCaseId(null)}/>}
+ {historyDoc&&<DocHistoryModal name={historyDoc.name} caseId={historyDoc.caseId} docEvents={store.docEvents} docs={docs} onClose={()=>setHistoryDoc(null)}/>}
+ {inviteFor&&<InviteCollabModal caseId={inviteFor} onClose={()=>setInviteFor(null)} onInvite={inviteCollaborator} existing={collaboratorsFor(inviteFor)} directory={OFFICER_DIRECTORY}/>}
+ {pendingCollab>0&&<div className="collab-banner" onClick={()=>{setBellOpen(true);setBellTab('requests');}}><Bell/> You have {pendingCollab} pending collaboration request{pendingCollab>1?'s':''} — click to review.</div>}
  {session&&<DmsAssistant ctx={{role:session.role,officer:session.name,jurisdiction:session.jurisdiction,caseIds:myCases,documents:docs.filter(d=>canOpenCase(d.caseId)).map(d=>({name:d.name,type:d.type,caseId:d.caseId,status:d.status,version:d.version,signed:d.signed,legalHold:d.legalHold,department:d.department})),auditCount:audit.length,ledgerBlocks:getChain().length,evidence:visibleEvidence.map(e=>({evId:e.evId,type:e.type,custodian:e.custodian,status:e.status,integrity:e.integrity})),recentAudit:audit.slice(0,6).map(a=>({action:a.action,target:a.target,actor:a.actor,at:a.at}))}} onOpenCase={openCase}/>}</div>
 }
 
@@ -153,7 +258,7 @@ export function GraphModal({caseId,onClose}:{caseId:string;onClose:()=>void}){
 }
 
 /* ---------- Repository: case list first, then the case's documents ---------- */
-function Repository({docs,openCase,goBack,canOpenCase,onRequest,openGraph}:{goBack:()=>void;docs:DmsDocument[];openCase:(id:string)=>void;canOpenCase:(id:string)=>boolean;onRequest:(caseId:string,reason:string)=>void;openGraph:(caseId:string)=>void}){
+function Repository({docs,openCase,goBack,canOpenCase,onRequest,openGraph,docEvents,onOpenDocHistory}:{goBack:()=>void;docs:DmsDocument[];openCase:(id:string)=>void;canOpenCase:(id:string)=>boolean;onRequest:(caseId:string,reason:string)=>void;openGraph:(caseId:string)=>void;docEvents:DocEvent[];onOpenDocHistory:(name:string,caseId:string)=>void}){
  const [query,setQuery]=useState('');
  const [stage,setStage]=useState('');
  const results=DMS_CASES.filter(c=>(!query||(c.title+c.caseId+c.statute).toLowerCase().includes(query.toLowerCase()))&&(!stage||c.stage===stage));
@@ -167,7 +272,7 @@ function Repository({docs,openCase,goBack,canOpenCase,onRequest,openGraph}:{goBa
      <h3>{c.title}</h3>
      <p className="repo-case-meta">{c.statute} · {c.court} · stage: {c.stage}</p>
      <div className="repo-case-docs">{allowed
-       ? cdocs.slice(0,4).map(d=><span key={d.id} className="doc-pill">{d.name}</span>)
+       ? cdocs.slice(0,4).map(d=><span key={d.id} className="doc-pill clickable" title={(docEvents.filter(e=>e.docName===d.name&&e.caseId===c.caseId).length+1)+' recorded events — click for document history'} onClick={()=>onOpenDocHistory(d.name,c.caseId)}>{d.name}<History/></span>)
        : cdocs.map(d=><span key={d.id} className="doc-pill dim">🔒 hidden document</span>)}
        {allowed&&cdocs.length>4&&<span className="doc-pill more">+{cdocs.length-4} more</span>}
        {cdocs.length===0&&<span className="doc-pill none">No documents yet</span>}
@@ -185,7 +290,7 @@ function Repository({docs,openCase,goBack,canOpenCase,onRequest,openGraph}:{goBa
 function Status({status}:{status:DmsDocument['status']}){return <span className={'doc-status '+status.replaceAll(' ','-').toLowerCase()}>{status==='Verified'?<Check/>:status==='Flagged'?<ShieldAlert/>:<Clock3/>}{status}</span>}
 
 /* ---------- Case workspace: tabbed dossier (Overview / Timeline / Documents) ---------- */
-function CaseWorkspace({session,role,docs,caseData,evidence,setPage,share,log,setDocs,flash,logAccess,canOpenCase,onRequest}:{session?:DmsSession|null;role:DmsRole;docs:DmsDocument[];caseData?:DmsCase;evidence:EvidenceItem[];setPage:(p:DmsPage)=>void;share:(id:string)=>void;log:(a:string,t:string)=>void;setDocs:(f:(x:DmsDocument[])=>DmsDocument[])=>void;flash:(x:string)=>void;logAccess:(c:string,d:string,a:AccessEvent['action'],det?:string)=>void;canOpenCase:(id:string)=>boolean;onRequest:(caseId:string,reason:string)=>void}){
+function CaseWorkspace({session,role,docs,caseData,evidence,setPage,share,log,setDocs,flash,logAccess,canOpenCase,onRequest,onOpenDocHistory,pushDocEvent,collaborators,chat,onSendChat,onInvite,myEmpId,myName,myRole}:{session?:DmsSession|null;role:DmsRole;docs:DmsDocument[];caseData?:DmsCase;evidence:EvidenceItem[];setPage:(p:DmsPage)=>void;share:(id:string)=>void;log:(a:string,t:string)=>void;setDocs:(f:(x:DmsDocument[])=>DmsDocument[])=>void;flash:(x:string)=>void;logAccess:(c:string,d:string,a:AccessEvent['action'],det?:string)=>void;canOpenCase:(id:string)=>boolean;onRequest:(caseId:string,reason:string)=>void;onOpenDocHistory:(name:string,caseId:string)=>void;pushDocEvent:(docId:string,docName:string,caseId:string,action:DocEventAction,detail?:string)=>void;collaborators:Collaborator[];chat:ChatMessage[];onSendChat:(caseId:string,text:string)=>void;onInvite:(caseId:string)=>void;myEmpId:string;myName:string;myRole:DmsRole}){
  const [tab,setTab]=useState<'overview'|'timeline'|'docs'>('overview');
  const [versionDoc,setVersionDoc]=useState<string|null>(null);
  const [viewing,setViewing]=useState<DmsDocument|null>(null);
@@ -196,7 +301,7 @@ function CaseWorkspace({session,role,docs,caseData,evidence,setPage,share,log,se
  const allowed=canOpenCase(caseData.caseId);
  const types=['All',...Array.from(new Set(docs.map(d=>d.type)))];
  const filtered=docs.filter(d=>(typeFilter==='All'||d.type===typeFilter)&&(!query||d.name.toLowerCase().includes(query.toLowerCase())));
- const openDoc=(d:DmsDocument)=>{if(!allowed)return;logAccess(caseData.caseId,d.name,'opened');log('Viewed document',d.name+' · '+caseData.caseId);appendBlock({action:'DOCUMENT_VIEWED',actor:session?.name||'Authorized user',actorId:session?.officerId||'—',caseId:caseData.caseId,documentName:d.name,payload:'view|'+d.name+'|v'+d.version});setViewing(d);};
+ const openDoc=(d:DmsDocument)=>{if(!allowed)return;logAccess(caseData.caseId,d.name,'opened');pushDocEvent(d.id,d.name,caseData.caseId,'opened');log('Viewed document',d.name+' · '+caseData.caseId);appendBlock({action:'DOCUMENT_VIEWED',actor:session?.name||'Authorized user',actorId:session?.officerId||'—',caseId:caseData.caseId,documentName:d.name,payload:'view|'+d.name+'|v'+d.version});setViewing(d);};
  const openStageAuto=caseData.timeline.findIndex(t=>t.active);
  return <><div className="dms-page-head with-button"><div><span>CASE FILE · {allowed?'PERMISSIONED ACCESS':'OVERVIEW + GRAPH ONLY'}</span><h1>{caseData.title} <code className="case-chip">{caseData.caseId}</code></h1><p>{caseData.statute} · {caseData.court} · stage: {caseData.stage} · next hearing {caseData.nextHearing}</p></div><button onClick={()=>setPage('repository')}><ArrowLeft/>Repository</button></div>
  {!allowed&&<section className="dms-panel no-access-note"><LockKeyhole/><div><b>Your role is not assigned to {caseData.caseId}.</b><p>You can study the overview, relationship graph and timeline below, but the documents stay hidden. Send an access request with a short description — the System Admin approves it in the Admin Panel.</p><button onClick={()=>{const r=window.prompt('Why do you need access to '+caseData.caseId+'?');if(r&&r.trim())onRequest(caseData.caseId,r.trim());}}><KeyRound/>Request access to {caseData.caseId}</button></div></section>}
@@ -274,6 +379,7 @@ function CaseWorkspace({session,role,docs,caseData,evidence,setPage,share,log,se
          <div className="doc-row-actions">
            <button onClick={()=>openDoc(d)} title="Open read-only (view is recorded in access history)"><Eye/></button>
            <button onClick={()=>share(d.id)} title="Create expiring share"><Share2/></button>
+           <button title="Document history — who uploaded &amp; acted, when" onClick={()=>onOpenDocHistory(d.name,caseData.caseId)}><History/></button>
            <button title="Version history" onClick={()=>setVersionDoc(versionDoc===d.name?null:d.name)}><History/></button>
          </div>
        </div>)}
@@ -283,13 +389,14 @@ function CaseWorkspace({session,role,docs,caseData,evidence,setPage,share,log,se
      </>}
    </div>}
  </section>
- {viewing&&<DocViewer doc={viewing} caseTitle={caseData.title} onClose={()=>setViewing(null)}/>}
+ <CaseCollabPanel caseId={caseData.caseId} collaborators={collaborators} chat={chat} onInvite={onInvite} onSendChat={onSendChat} myEmpId={myEmpId} myName={myName} myRole={myRole}/>
+ {viewing&&<DocViewer doc={viewing} caseTitle={caseData.title} onOpenDocHistory={onOpenDocHistory} onClose={()=>setViewing(null)}/>}
  {versionDoc&&<VersionHistoryPanel docName={versionDoc} currentVersion={docs.find(x=>x.name===versionDoc)?.version??1} canEdit={role==='Investigating Officer'||role==='Legal Department Officer'} onCreateVersion={async reason=>{const d=docs.find(x=>x.name===versionDoc);if(!d)return;await appendBlock({action:'VERSION_CREATED',actor:session?.name||'Authorized user',actorId:session?.officerId||'—',caseId:caseData.caseId,documentName:d.name,payload:'version|v'+(d.version+1)+'|'+reason});setDocs(x=>x.map(y=>y.id===d.id?{...y,version:y.version+1}:y));log('Created new version (reason recorded)',d.name);flash('Version '+(d.version+1)+' created — reason anchored to the integrity ledger.')}}/>}
  </>;
 }
 
 /* ---------- Doc viewer: read-only modal, opens are recorded in access history ---------- */
-function DocViewer({doc,caseTitle,onClose}:{doc:DmsDocument;caseTitle:string;onClose:()=>void}){
+function DocViewer({doc,caseTitle,onOpenDocHistory,onClose}:{doc:DmsDocument;caseTitle:string;onOpenDocHistory:(name:string,caseId:string)=>void;onClose:()=>void}){
  return <div className="modal-scrim" onClick={onClose}><div className="doc-viewer" onClick={e=>e.stopPropagation()}>
    <div className="doc-viewer-head"><div><small>READ-ONLY · VIEW RECORDED IN ACCESS HISTORY</small><h3>{doc.name}</h3><code className="case-chip">{doc.caseId}</code></div><button onClick={onClose}><X/></button></div>
    <div className="doc-viewer-meta">
@@ -303,18 +410,160 @@ function DocViewer({doc,caseTitle,onClose}:{doc:DmsDocument;caseTitle:string;onC
      <p><b>{doc.type}</b> — document body preview is simulated in this demo build. In production the full file renders from encrypted object storage; the viewer is intentionally read-only and has no edit affordance.</p>
      <p>Case: <b>{caseTitle}</b> ({doc.caseId}) · Version {doc.version} · {doc.signed?'Digitally signed':'Signature pending'}{doc.legalHold?' · Legal hold active':''}</p>
    </div>
-   <small className="doc-viewer-note"><Eye/>Your open was logged — who, when, and what — visible to the System Admin under Document access history.</small>
+   <div className="doc-viewer-foot"><small className="doc-viewer-note"><Eye/>Your open was logged — who, when, and what — visible to the System Admin under Document access history.</small><button onClick={()=>onOpenDocHistory(doc.name,doc.caseId)}><History/>Document history</button></div>
  </div></div>;
 }
 
-function UploadDigitize({onUpload,goBack,targetCase}:{goBack:()=>void;onUpload:(n:string,t:string,s:boolean)=>void;targetCase:string}){const [name,setName]=useState(''),[type,setType]=useState('FIR'),[sign,setSign]=useState(true),[file,setFile]=useState<File|null>(null);const submit=()=>{const x=file?.name||name.trim();if(!x)return;onUpload(x,type,sign)};return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>INGEST · CLASSIFY · PROTECT</span><h1>Upload &amp; Digitize</h1><p>New documents are registered under the currently selected case ID: <b>{targetCase}</b>. Open a case workspace first to upload into it.</p></div></div><section className="upload-layout"><article className="dms-panel upload-drop"><Upload/><h2>Drop a document here</h2><p>PDF, JPG, PNG · Demo accepts a local file name only; files never leave this browser.</p><label>Choose document<input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={e=>{setFile(e.target.files?.[0]??null);setName(e.target.files?.[0]?.name??'')}}/></label>{file&&<b><FileText/>{file.name}</b>}</article><article className="dms-panel upload-meta"><h3>AI classification &amp; metadata</h3><label>Document label<input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Witness_statement.pdf"/></label><label>Detected document type<select value={type} onChange={e=>setType(e.target.value)}>{['FIR','Charge sheet','Witness statement','Electronic evidence','Forensic report','Court filing','Legal notice','Judgment'].map(x=><option key={x}>{x}</option>)}</select></label><div className="ai-classified"><SparkleMini/> AI classification ready <span>94% confidence</span></div><label className="signature-check"><input type="checkbox" checked={sign} onChange={e=>setSign(e.target.checked)}/> Attach demo digital signature</label><button onClick={submit}><Upload/>Digitize, hash &amp; upload</button></article></section></>}
+/* ---------- Upload & Digitize: role-scoped case selector ----------
+   The target case is picked from the officer's ACTIVE CASES — scoped by role
+   (IO → his caseload, FO → forensic-linked matters, registry → full docket,
+   Legal → IPC/CPC/CrPC filings, Records/Admin → platform-wide). Each scope
+   carries a note explaining WHY the role sees what it sees, and accepting a
+   collaboration invite also widens this list for the session. */
+function UploadDigitize({onUpload,goBack,role,defaultCase,extraCases}:{goBack:()=>void;onUpload:(n:string,t:string,s:boolean,caseId:string)=>void;role:DmsRole;defaultCase:string;extraCases:string[]}){
+ const [name,setName]=useState(''),[type,setType]=useState('FIR'),[sign,setSign]=useState(true),[file,setFile]=useState<File|null>(null);
+ /* Active caseload = role-based scope ∪ cases granted this session (approved
+    access requests + accepted collaboration invites). */
+ const scopeCases=DMS_CASES.filter(c=>scopedCaseIds(role).includes(c.caseId));
+ const extra=DMS_CASES.filter(c=>!scopedCaseIds(role).includes(c.caseId)&&extraCases.includes(c.caseId));
+ const options=[...scopeCases,...extra];
+ const [caseId,setCaseId]=useState(options.some(c=>c.caseId===defaultCase)?defaultCase:options[0]?.caseId||'');
+ const chosen=DMS_CASES.find(c=>c.caseId===caseId);
+ const submit=()=>{const x=file?.name||name.trim();if(!x||!caseId)return;onUpload(x,type,sign,caseId)};
+ return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>INGEST · CLASSIFY · PROTECT</span><h1>Upload &amp; Digitize</h1><p>Choose the case this document belongs to — every record is filed under its unique case ID with a hash-anchored chain of custody.</p></div></div>
+ <section className="upload-layout">
+  <article className="dms-panel upload-drop"><Upload/><h2>Drop a document here</h2><p>PDF, JPG, PNG · Demo accepts a local file name only; files never leave this browser.</p><label>Choose document<input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={e=>{setFile(e.target.files?.[0]??null);setName(e.target.files?.[0]?.name??'')}}/></label>{file&&<b><FileText/>{file.name}</b>}</article>
+  <article className="dms-panel upload-meta">
+   <h3>Case &amp; AI classification</h3>
+   <label>Choose case from your active cases
+    <select value={caseId} onChange={e=>setCaseId(e.target.value)}>
+     {options.map(c=><option key={c.caseId} value={c.caseId}>{c.caseId} — {c.title}</option>)}
+    </select>
+   </label>
+   {chosen&&<p className="upload-case-note">{chosen.statute} · {chosen.court} · stage: {chosen.stage}</p>}
+   <p className="upload-scope-note"><ShieldCheck/>{SCOPE_NOTE[role]} Accepted collaborations widen this list for your session.</p>
+   <label>Document label<input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Witness_statement.pdf"/></label>
+   <label>Detected document type<select value={type} onChange={e=>setType(e.target.value)}>{['FIR','Charge sheet','Witness statement','Electronic evidence','Forensic report','Court filing','Legal notice','Judgment'].map(x=><option key={x}>{x}</option>)}</select></label>
+   <div className="ai-classified"><SparkleMini/> AI classification ready <span>94% confidence</span></div>
+   <label className="signature-check"><input type="checkbox" checked={sign} onChange={e=>setSign(e.target.checked)}/> Attach demo digital signature</label>
+   <button onClick={submit} disabled={!caseId}><Upload/>Digitize, hash &amp; upload</button>
+  </article>
+ </section></>}
+
 function SparkleMini(){return <span className="sparkle">✦</span>}
+
+/* ---------- Document history: who did what, when ----------
+   Opens from every document surface: case workspace rows, repository pills,
+   the read-only viewer, integrity cards and compliance rows. Merges live
+   session events with the immutable upload record so "who uploaded this, and
+   when" is always the first row. */
+function DocHistoryModal({name,caseId,docEvents,docs,onClose}:{name:string;caseId:string;docEvents:DocEvent[];docs:DmsDocument[];onClose:()=>void}){
+ const doc=docs.find(d=>d.name===name&&d.caseId===caseId);
+ const events=docEvents.filter(e=>e.docName===name&&e.caseId===caseId);
+ const iconFor=(a:DocEventAction)=>a==='uploaded'?<Upload/>:a==='opened'?<Eye/>:a==='shared'?<Share2/>:a==='verified'?<ShieldCheck/>:a==='version'?<History/>:a==='legal-hold'?<LockKeyhole/>:<KeyRound/>;
+ return <div className="modal-scrim" onClick={onClose}><div className="doc-history-modal" onClick={e=>e.stopPropagation()}>
+  <div className="doc-viewer-head"><div><small>DOCUMENT HISTORY · CHAIN OF CUSTODY · {caseId}</small><h3>{name}</h3></div><button onClick={onClose}><X/></button></div>
+  <div className="doc-history-meta">
+   <span><UserCog/>Uploaded by: <b>{doc?.uploadedBy||'—'}</b></span>
+   <span><Clock3/>Uploaded at: <b>{doc?.uploadedAt||'—'}</b></span>
+   <span><ShieldCheck/>Status: <b>{doc?.status||'—'}</b></span>
+   <span><Fingerprint/>SHA-256: <code>{doc?.hash||'—'}</code></span>
+  </div>
+  <div className="doc-history-list">
+   {doc&&<div className="doc-history-row origin">
+     <i><Upload/></i>
+     <div><b>{doc.uploadedBy}</b> <small>({roleForName(doc.uploadedBy)})</small><p>Uploaded the document · v{doc.version} · hash-anchored</p><small>{doc.uploadedAt}</small></div>
+   </div>}
+   {events.map(ev=><div className="doc-history-row" key={ev.id}>
+     <i>{iconFor(ev.action)}</i>
+     <div><b>{ev.by}</b> <small>({ev.byRole})</small><p>{ev.action.charAt(0).toUpperCase()+ev.action.slice(1).replaceAll('-',' ')}{ev.detail?' — '+ev.detail:''}</p><small>{ev.at}</small></div>
+   </div>)}
+   {!doc&&events.length===0&&<p className="dash-empty">No history recorded for this document yet.</p>}
+  </div>
+  <small className="doc-viewer-note"><LockKeyhole/>Every event is append-only. In production these rows live in a WORM table and are hash-anchored to the integrity ledger — history cannot be rewritten.</small>
+ </div></div>;
+}
+
+/* ---------- Add collaborator: employee-ID + role invite ----------
+   Opens from the case workspace. Resolves the unique employee ID against the
+   officer directory, then creates a collaboration request that arrives in the
+   invitee's notification bell (Accept → joins the SAME case workspace). */
+function InviteCollabModal({caseId,onClose,onInvite,existing,directory}:{caseId:string;onClose:()=>void;onInvite:(caseId:string,empId:string,role:DmsRole)=>boolean;existing:Collaborator[];directory:{empId:string;name:string;role:string;department:string;status:string}[]}){
+ const [empId,setEmpId]=useState('');
+ const [role,setRole]=useState<DmsRole>('Investigating Officer');
+ const [err,setErr]=useState('');
+ const preview=empId.trim()?findOfficer(empId):undefined;
+ const submit=()=>{
+  const off=empId.trim()?findOfficer(empId):undefined;
+  if(!off){setErr('Unknown employee ID. Directory: '+directory.slice(0,6).map(o=>o.empId).join(', '));return;}
+  if(off.role!==role){setErr('Role does not match the directory: '+off.name+' is a '+off.role+'.');return;}
+  if(existing.some(c=>c.empId===off.empId)){setErr(off.name+' is already on this workspace (pending or accepted).');return;}
+  setErr('');
+  if(onInvite(caseId,off.empId,role))onClose();
+ };
+ return <div className="modal-scrim" onClick={onClose}><div className="invite-modal" onClick={e=>e.stopPropagation()}>
+  <div className="doc-viewer-head"><div><small>SHARED CASE WORKSPACE · {caseId}</small><h3><UserPlus/> Add collaborator</h3></div><button onClick={onClose}><X/></button></div>
+  <p className="invite-sub">Enter the officer's unique employee ID and platform role. They receive a collaboration request in their notification bell — accepting joins them to THIS case workspace with its documents, graph, timeline and chat.</p>
+  <label>Unique employee ID
+   <input value={empId} onChange={e=>{setEmpId(e.target.value);setErr('');}} placeholder="e.g. FO-2026-0451"/>
+  </label>
+  {preview&&<p className="invite-preview"><ShieldCheck/> Directory match: <b>{preview.name}</b> · {preview.role} · {preview.department}</p>}
+  {empId.trim()&&!preview&&<p className="invite-preview miss">No directory match yet — check the ID.</p>}
+  <label>Platform role
+   <select value={role} onChange={e=>setRole(e.target.value as DmsRole)}>{(['Investigating Officer','Forensic Officer','Court / Registrar Staff','Legal Department Officer','Records / Compliance Officer','System Admin'] as DmsRole[]).map(r=><option key={r}>{r}</option>)}</select>
+  </label>
+  {err&&<p className="invite-error"><ShieldAlert/>{err}</p>}
+  {existing.length>0&&<div className="invite-existing"><b>Already on this workspace:</b>{existing.map(c=><span key={c.id}><Users/>{c.name} · {c.role} · {c.status==='pending'?'invite pending':'active'}</span>)}</div>}
+  <div className="invite-actions"><button className="ghost" onClick={onClose}>Cancel</button><button onClick={submit}><Send/>Send collaboration request</button></div>
+  <small className="doc-viewer-note"><KeyRound/>Invites to suspended officers are blocked and logged. In production the request row is written to <code>case_collaborators</code> and delivered by the notifications service (RLS-scoped to the invitee).</small>
+ </div></div>;
+}
+
+/* ---------- Collaborative workspace panel: shared roster + case chat ----------
+   Rendered inside every case workspace. Participants (inviter + accepted
+   collaborators across ALL roles) share one workspace: the same documents,
+   graph, timeline — plus this chat channel for coordination. */
+function CaseCollabPanel({caseId,collaborators,chat,onInvite,onSendChat,myEmpId,myName,myRole}:{caseId:string;collaborators:Collaborator[];chat:ChatMessage[];onInvite:(caseId:string)=>void;onSendChat:(caseId:string,text:string)=>void;myEmpId:string;myName:string;myRole:DmsRole}){
+ const [text,setText]=useState('');
+ const endRef=useRef<HTMLDivElement|null>(null);
+ useEffect(()=>{endRef.current?.scrollIntoView({block:'nearest'})},[chat.length]);
+ const accepted=collaborators.filter(c=>c.status==='accepted'&&c.empId!==myEmpId);
+ const pending=collaborators.filter(c=>c.status==='pending'&&c.empId!==myEmpId);
+ return <section className="dms-panel collab-panel">
+  <div className="collab-head">
+   <h3><Users/>Shared workspace <small>one case · one team across roles</small></h3>
+   <button onClick={()=>onInvite(caseId)}><UserPlus/>Add collaborator</button>
+  </div>
+  <div className="collab-roster">
+   <span className="collab-chip me"><b>{myName}</b><small>{myRole} · you</small></span>
+   {accepted.map(c=><span className="collab-chip" key={c.id}><b>{c.name}</b><small>{c.role} · invited by {c.invitedBy}</small></span>)}
+   {pending.map(c=><span className="collab-chip pending" key={c.id}><b>{c.name}</b><small>{c.role} · invite pending</small></span>)}
+  </div>
+  <div className="collab-chat">
+   <div className="collab-chat-head"><MessageSquare/>Case chat <small>visible to every participant of {caseId}</small></div>
+   <div className="collab-msgs">
+    {chat.length===0&&<p className="dash-empty">No messages yet — coordinate with your collaborators here.</p>}
+    {chat.map(m=><div key={m.id} className={'collab-msg'+(m.system?' system':m.fromId===myEmpId?' mine':'')}>
+      {m.system
+        ? <p className="collab-sys"><Check/>{m.text} <small>· {m.at}</small></p>
+        : <><div className="collab-msg-head"><b>{m.from}</b><small>{m.fromRole} · {m.at}</small></div><p>{m.text}</p></>}
+    </div>)}
+    <div ref={endRef}/>
+   </div>
+   <div className="collab-input">
+    <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&text.trim()){onSendChat(caseId,text.trim());setText('');}}} placeholder="Message the case team…" aria-label="Message the case team"/>
+    <button onClick={()=>{if(text.trim()){onSendChat(caseId,text.trim());setText('');}}} title="Send"><Send/></button>
+   </div>
+  </div>
+  <small className="doc-viewer-note"><LockKeyhole/>Chat is case-scoped and audited like every other workspace event — each message records sender, role and time. Production stores these in <code>case_messages</code> with RLS limited to case participants.</small>
+ </section>;
+}
 function AccessControl({role,log,flash,goBack}:{goBack:()=>void;role:DmsRole;log:(a:string,t:string)=>void;flash:(x:string)=>void}){const [dept,setDept]=useState('Court Registry'),[hours,setHours]=useState('72');const grant=()=>{log('Granted time-bound access',`${dept} · ${hours} hours`);flash(`Read-only access granted to ${dept} for ${hours} hours.`)};return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>ROLE-BASED ACCESS CONTROL</span><h1>Access Control Center</h1><p>Officers see only their assigned cases. Cross-case access is granted here or via access-request approval.</p></div></div><section className="access-layout"><article className="dms-panel permission-matrix"><h3>Permission matrix</h3><table><thead><tr><th>Role</th><th>Repository</th><th>Upload</th><th>Share</th><th>Audit</th></tr></thead><tbody>{[['Investigating Officer','Own cases only','Create','Request','Own actions'],['Forensic Officer','Own cases only','Create','Request','Own actions'],['Court / Registrar Staff','Assigned cases','Create','Grant','Read'],['Legal Department Officer','Assigned cases','Create','Request','Read'],['Records / Compliance Officer','Read','No','Approve','Full'],['System Admin','Full','Full','Full','Full']].map(x=><tr key={x[0]}>{x.map((y,i)=><td key={i}>{y}</td>)}</tr>)}</tbody></table></article><article className="dms-panel access-grant"><h3><KeyRound/>Grant time-bound access</h3><p>Current approver: {role}</p><label>Department<select value={dept} onChange={e=>setDept(e.target.value)}>{['Court Registry','Forensic Lab','Public Prosecutor','Legal Department'].map(x=><option key={x}>{x}</option>)}</select></label><label>Expires in<select value={hours} onChange={e=>setHours(e.target.value)}><option value="24">24 hours</option><option value="72">72 hours</option><option value="168">7 days</option></select></label><button onClick={grant}><KeyRound/>Grant read-only access</button></article></section></>}
 function AuditTrail({audit,goBack}:{goBack:()=>void;audit:Audit[]}){const [q,setQ]=useState('');const bridge=getBridgeAccessEvents();const bridgeRows:Audit[]=bridge.map((e,i)=>({id:'bridge-'+i,at:e.at,actor:e.lawyer+' (S.U.R.Y.A. · read-only)',action:'Viewed DMS record via assistance suite',target:e.document,department:'Permissioned cross-system access'}));const all=[...bridgeRows,...audit];const filtered=all.filter(x=>(x.action+x.target+x.actor).toLowerCase().includes(q.toLowerCase()));const csv=()=>{const body=['Time,Actor,Action,Target,Department',...filtered.map(x=>[x.at,x.actor,x.action,x.target,x.department].map(y=>'"'+y.replaceAll('"','""')+'"').join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([body],{type:'text/csv'}));a.download='surya-dms-audit-export.csv';a.click();URL.revokeObjectURL(a.href)};return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>APPEND-ONLY DEMO LEDGER</span><h1>Audit Trail</h1><p>Every view, upload, share, and role switch is retained in this session — including S.U.R.Y.A. cross-system reads.</p></div><button onClick={csv}><Download/>Export CSV</button></div><section className="dms-panel audit-table"><div className="audit-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter activity…"/></div><div className="audit-head"><span>Timestamp</span><span>Actor</span><span>Action</span><span>Target</span><span>Department</span></div>{filtered.map(x=><div className="audit-row" key={x.id}><span>{x.at}</span><b>{x.actor}</b><span>{x.action}</span><span>{x.target}</span><span>{x.department}</span></div>)}</section></>}
-function Integrity({session,docs,log,flash,goBack}:{goBack:()=>void;session?:DmsSession|null;docs:DmsDocument[];log:(a:string,t:string)=>void;flash:(x:string)=>void}){const check=async(d:DmsDocument)=>{const v=await verifyChain();await appendBlock({action:'INTEGRITY_VERIFIED',actor:session?.name||'Verifier',actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:d.name+'|v'+d.version+'|'+d.hash});log('Re-verified integrity hash',d.name);flash(v.valid?`Hash chain verified for ${d.name} — ledger intact (${v.length} blocks).`:`WARNING: tamper detected at block #${v.brokenAtIndex}!`)};return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>HASH-CHAIN · DEMO IMPLEMENTATION</span><h1>Integrity &amp; Verification</h1><p>Every version has a record hash. Production would calculate hashes and notarize them server-side.</p></div></div><section className="integrity-grid">{docs.map(d=><article className="dms-panel integrity-card" key={d.id}><div><Fingerprint/><Status status={d.status==='Flagged'?'Flagged':'Verified'}/></div><h3>{d.name}</h3><p>SHA-256 record: <code>{d.hash.slice(0,16)}…</code></p><small>Case {d.caseId} · v{d.version} · {d.signed?'Digital signature present':'Signature pending'}</small><button onClick={()=>check(d)}><ShieldCheck/>Verify hash chain</button></article>)}</section></>}
+function Integrity({session,docs,log,flash,goBack,onOpenDocHistory}:{goBack:()=>void;session?:DmsSession|null;docs:DmsDocument[];log:(a:string,t:string)=>void;flash:(x:string)=>void;onOpenDocHistory:(name:string,caseId:string)=>void}){const check=async(d:DmsDocument)=>{const v=await verifyChain();await appendBlock({action:'INTEGRITY_VERIFIED',actor:session?.name||'Verifier',actorId:session?.officerId||'—',caseId:d.caseId,documentName:d.name,payload:d.name+'|v'+d.version+'|'+d.hash});log('Re-verified integrity hash',d.name);flash(v.valid?`Hash chain verified for ${d.name} — ledger intact (${v.length} blocks).`:`WARNING: tamper detected at block #${v.brokenAtIndex}!`)};return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>HASH-CHAIN · DEMO IMPLEMENTATION</span><h1>Integrity &amp; Verification</h1><p>Every version has a record hash. Production would calculate hashes and notarize them server-side.</p></div></div><section className="integrity-grid">{docs.map(d=><article className="dms-panel integrity-card" key={d.id}><div><Fingerprint/><Status status={d.status==='Flagged'?'Flagged':'Verified'}/></div><h3>{d.name}</h3><p>SHA-256 record: <code>{d.hash.slice(0,16)}…</code></p><small>Case {d.caseId} · v{d.version} · {d.signed?'Digital signature present':'Signature pending'} · uploaded by {d.uploadedBy} at {d.uploadedAt}</small><div className="integrity-actions"><button onClick={()=>check(d)}><ShieldCheck/>Verify hash chain</button><button onClick={()=>onOpenDocHistory(d.name,d.caseId)}><History/>History</button></div></article>)}</section></>}
 function Sharing({docs,share,goBack}:{goBack:()=>void;docs:DmsDocument[];share:(id:string)=>void}){const [chosen,setChosen]=useState(docs[0]?.id||''),[redact,setRedact]=useState(true);const current=docs.find(d=>d.id===chosen);return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>CONTROLLED COLLABORATION</span><h1>Secure Sharing</h1><p>Shares are read-only, time-bound, watermarked, and logged in the audit trail.</p></div></div><section className="share-layout"><article className="dms-panel redact-preview"><div className="watermark">CONFIDENTIAL · S.U.R.Y.A.</div><h3>{current?.name}</h3><p>Witness name: {redact?<b className="redacted">██████████</b>:'Rajesh Meena'}</p><p>Contact number: {redact?<b className="redacted">████████</b>:'98XXXXXX12'}</p><p>Case reference: {current?.caseId}</p><label><input type="checkbox" checked={redact} onChange={e=>setRedact(e.target.checked)}/> Apply redaction to sensitive personal data</label></article><article className="dms-panel share-controls"><h3><Share2/>Create permissioned share</h3><label>Document<select value={chosen} onChange={e=>setChosen(e.target.value)}>{docs.map(x=><option value={x.id} key={x.id}>{x.name} — {x.caseId}</option>)}</select></label><label>Recipient department<select><option>Court Registry</option><option>Public Prosecutor</option><option>Lawyer on record — read only</option></select></label><label>Expires<select><option>72 hours</option><option>7 days</option><option>30 days</option></select></label><button onClick={()=>current&&share(current.id)}><Link/>Create expiring share link</button><small><ShieldCheck/> Recipients receive a watermark and cannot edit the source document.</small></article></section></>}
 function SemanticSearch({docs,openCase,log,goBack,canOpenCase}:{goBack:()=>void;docs:DmsDocument[];openCase:(x:string)=>void;log:(a:string,t:string)=>void;canOpenCase:(id:string)=>boolean}){const [q,setQ]=useState('cctv');const result=useMemo(()=>docs.filter(d=>(d.name+d.type+d.caseId).toLowerCase().includes(q.toLowerCase())||(['cctv','evidence','murder'].some(x=>q.toLowerCase().includes(x)&&d.caseId==='CR/124/2026'))),[docs,q]);return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>AI-ASSISTED RETRIEVAL · DEMO</span><h1>Search &amp; Retrieval</h1><p>Semantic matching is simulated locally. Gemini/vector retrieval requires a secured server integration in production.</p></div></div><section className="semantic"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Try: CCTV evidence in CR/124/2026"/><button onClick={()=>log('Ran semantic search',q)}>Search</button></section><p className="search-note">{result.length} permissioned results · relevance scoring based on document type, case ID, and keyword context.</p><section className="semantic-results">{result.map((d,i)=><button key={d.id} onClick={()=>{if(!canOpenCase(d.caseId))return;log('Opened search result',d.name);openCase(d.caseId)}}><span>{Math.max(82,98-i*5)}%</span><FileText/><div><b>{d.name}</b><p>{d.type} · {d.caseId} · {d.department}</p><small>Matched: <mark>{q}</mark> in document metadata and case context</small></div><ChevronRight/></button>)}</section></>}
-function Compliance({docs,setHold,goBack}:{goBack:()=>void;docs:DmsDocument[];setHold:(id:string)=>void}){return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>RETENTION · LEGAL HOLDS · DISPOSAL</span><h1>Compliance &amp; Retention</h1><p>Manage record lifecycles while preserving litigation and investigation materials.</p></div></div><section className="dms-panel retention"><div className="retention-banner"><Archive/><div><b>Retention policy: Criminal proceedings</b><p>Retain until final judgment and appeal period, then follow departmental retention schedule.</p></div></div>{docs.map(d=><div className="retention-row" key={d.id}><FileText/><div><b>{d.name}</b><small>{d.caseId} · Retention: 10 years after closure</small></div><span className={d.legalHold?'hold':'schedule'}>{d.legalHold?'Legal hold active':'Scheduled retention'}</span><button onClick={()=>setHold(d.id)}>{d.legalHold?'Release hold':'Apply legal hold'}</button></div>)}</section></>}
+function Compliance({docs,setHold,goBack,onOpenDocHistory}:{goBack:()=>void;docs:DmsDocument[];setHold:(id:string)=>void;onOpenDocHistory:(name:string,caseId:string)=>void}){return <><div className="dms-page-head with-button"><div><button className="dms-back" onClick={goBack}><ArrowLeft/>Back to Dashboard</button><span>RETENTION · LEGAL HOLDS · DISPOSAL</span><h1>Compliance &amp; Retention</h1><p>Manage record lifecycles while preserving litigation and investigation materials.</p></div></div><section className="dms-panel retention"><div className="retention-banner"><Archive/><div><b>Retention policy: Criminal proceedings</b><p>Retain until final judgment and appeal period, then follow departmental retention schedule.</p></div></div>{docs.map(d=><div className="retention-row" key={d.id}><FileText/><div><b className="clickable-doc" title="Open document history" onClick={()=>onOpenDocHistory(d.name,d.caseId)}>{d.name}</b><small>{d.caseId} · Retention: 10 years after closure</small></div><span className={d.legalHold?'hold':'schedule'}>{d.legalHold?'Legal hold active':'Scheduled retention'}</span><div className="retention-actions"><button onClick={()=>setHold(d.id)}>{d.legalHold?'Release hold':'Apply legal hold'}</button><button title="Document history" onClick={()=>onOpenDocHistory(d.name,d.caseId)}><History/></button></div></div>)}</section></>}
 
 function LedgerExplorer({goBack,flash}:{goBack:()=>void;flash:(x:string)=>void}){
  const [chain,setChain]=useState<LedgerBlock[]>(getChain());

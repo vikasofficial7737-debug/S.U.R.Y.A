@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1920px; height:560px; background:linear-gradient(135deg,#0b1524 0%,#101f33 60%,#0c1a2c 100%); font-family:'Segoe UI',Calibri,Arial,sans-serif; overflow:hidden; }
+  .wrap { width:1920px; height:560px; padding:10px 28px 8px; display:flex; flex-direction:column; }
+  .head { display:flex; justify-content:space-between; align-items:baseline; padding:2px 6px 6px; }
+  .head h1 { color:#eef4fc; font-size:25px; font-weight:700; letter-spacing:.3px; }
+  .head h1 .caseid { color:#e2a93b; }
+  .head .sub { color:#8fa7c6; font-size:14px; }
+  svg { display:block; }
+  .legend { display:flex; align-items:center; gap:9px; padding:7px 6px 0; }
+  .chip { display:flex; align-items:center; gap:6px; background:#152640; border:1px solid #2b4468; border-radius:18px; padding:4px 11px; color:#cfe0f2; font-size:12.5px; white-space:nowrap; }
+  .sw { width:13px; height:13px; flex:0 0 auto; }
+  .sw.diamond { transform:rotate(45deg); width:10px; height:10px; border-radius:2px; }
+  .sw.circle { border-radius:50%; }
+  .sw.sq { border-radius:3px; }
+  .sw.rect { width:17px; border-radius:4px; }
+  .lnk { display:flex; align-items:center; gap:6px; color:#cfe0f2; font-size:12.5px; padding:4px 8px; }
+  .lnk .line { width:24px; height:0; border-top:2.5px solid #6d89b4; }
+  .lnk .dash { width:24px; height:0; border-top:2.5px dashed #b8860b; }
+  .keyfind { margin-left:auto; background:rgba(184,134,11,.12); border:1px solid #b8860b; color:#f4e3b2; border-radius:18px; padding:5px 13px; font-size:12.5px; }
+  .keyfind b { color:#ffd970; }
+  text.node-label { font-size:15px; font-weight:600; fill:#e6eefb; }
+  text.node-sub { font-size:11.5px; fill:#8fa3bd; }
+  text.edge-label { font-size:12.5px; fill:#c9d8ea; }
+  text.edge-label.sus { fill:#ffd970; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>Connected Case Graph &nbsp;<span class="caseid">· CR/124/2026 — State vs R. Singh (IPC 302)</span></h1>
+    <div class="sub">9 entities · 14 links · force-directed, AI-explained — live in the S.U.R.Y.A. prototype</div>
+  </div>
+  <svg width="1920" height="440" viewBox="0 0 1920 440">
+    <!-- ============ EDGES ============ -->
+    <g stroke="#5f7ba3" stroke-width="2" opacity=".9">
+      <line x1="185" y1="70" x2="395" y2="340"/>
+      <line x1="185" y1="70" x2="1050" y2="45"/>
+      <line x1="420" y1="175" x2="660" y2="260"/>
+      <line x1="735" y1="90" x2="660" y2="260"/>
+      <line x1="1000" y1="255" x2="660" y2="260"/>
+      <line x1="660" y1="260" x2="395" y2="340"/>
+      <line x1="1000" y1="255" x2="1240" y2="395"/>
+      <line x1="1000" y1="255" x2="735" y2="90"/>
+      <line x1="1050" y1="45" x2="660" y2="260"/>
+      <line x1="1050" y1="45" x2="735" y2="90"/>
+      <line x1="660" y1="260" x2="1580" y2="360"/>
+      <line x1="395" y1="340" x2="1580" y2="360"/>
+      <line x1="735" y1="90" x2="1580" y2="360"/>
+    </g>
+    <line x1="735" y1="90" x2="420" y2="175" stroke="#b8860b" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <!-- edge labels -->
+    <g font-family="inherit">
+      <g transform="translate(540,218)"><rect x="-46" y="-13" width="92" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">victim of</text></g>
+      <g transform="translate(700,175)"><rect x="-60" y="-13" width="120" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">charged with</text></g>
+      <g transform="translate(830,258)"><rect x="-32" y="-13" width="64" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">saw</text></g>
+      <g transform="translate(893,68)"><rect x="-78" y="-13" width="156" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">places at scene</text></g>
+      <g transform="translate(930,215)"><rect x="-52" y="-13" width="104" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">identified</text></g>
+      <g transform="translate(900,130)"><rect x="-54" y="-13" width="108" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">recorded</text></g>
+      <g transform="translate(1120,310)"><rect x="-46" y="-13" width="92" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">listed at</text></g>
+      <g transform="translate(988,350)"><rect x="-50" y="-13" width="100" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">filed with</text></g>
+      <g transform="translate(618,58)"><rect x="-52" y="-13" width="104" height="26" rx="13" fill="#13273e" stroke="#33507a"/><text class="edge-label" text-anchor="middle" y="4.5">certifying</text></g>
+      <g transform="translate(578,133)"><rect x="-92" y="-14" width="184" height="28" rx="14" fill="#2a1f06" stroke="#b8860b"/><text class="edge-label sus" text-anchor="middle" y="4.5">prior enmity alleged</text></g>
+    </g>
+    <!-- ============ NODES ============ -->
+    <g transform="translate(185,70)">
+      <circle r="24" fill="#0e7566" stroke="#3fae9d" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="46">FSL team</text><text class="node-sub" text-anchor="middle" y="63">Dr. R. Iyer</text>
+    </g>
+    <g transform="translate(420,175)">
+      <circle r="24" fill="#1e56c4" stroke="#6f9ff0" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="46">Victim</text><text class="node-sub" text-anchor="middle" y="63">Sohan Lal</text>
+    </g>
+    <g transform="translate(735,90)">
+      <circle r="24" fill="#a93636" stroke="#e06c6c" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="46">Accused</text><text class="node-sub" text-anchor="middle" y="63">R. Singh</text>
+    </g>
+    <g transform="translate(1050,45)">
+      <rect x="-20" y="-20" width="40" height="40" rx="3" fill="#4c5560" stroke="#8d9aa8" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="42">CCTV clip</text><text class="node-sub" text-anchor="middle" y="59">shop camera</text>
+    </g>
+    <g transform="translate(660,260)">
+      <polygon points="0,-32 55,0 0,32 -55,0" fill="#a06d10" stroke="#e2a93b" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="56">Incident</text><text class="node-sub" text-anchor="middle" y="73">12 Jan 2026</text>
+    </g>
+    <g transform="translate(1000,255)">
+      <circle r="24" fill="#0e7566" stroke="#3fae9d" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="46">Witness</text><text class="node-sub" text-anchor="middle" y="63">Rajesh Meena</text>
+    </g>
+    <g transform="translate(395,340)">
+      <rect x="-20" y="-20" width="40" height="40" rx="3" fill="#4c5560" stroke="#8d9aa8" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="42">Evidence</text><text class="node-sub" text-anchor="middle" y="59">5 files in DMS</text>
+    </g>
+    <g transform="translate(1240,395)">
+      <rect x="-20" y="-20" width="40" height="40" rx="3" fill="#4c5560" stroke="#8d9aa8" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="42">PW statement</text><text class="node-sub" text-anchor="middle" y="59">u/s 161 CrPC</text>
+    </g>
+    <g transform="translate(1580,360)">
+      <rect x="-34" y="-20" width="68" height="40" rx="7" fill="#4f46c8" stroke="#8d86ee" stroke-width="2.5"/>
+      <text class="node-label" text-anchor="middle" y="44">Court</text><text class="node-sub" text-anchor="middle" y="61">20 Sep 2026</text>
+    </g>
+  </svg>
+  <div class="legend">
+    <div class="chip"><span class="sw diamond" style="background:#a06d10;border:1.5px solid #e2a93b"></span>Incident / event</div>
+    <div class="chip"><span class="sw circle" style="background:#1e56c4;border:1.5px solid #6f9ff0"></span>Victim</div>
+    <div class="chip"><span class="sw circle" style="background:#a93636;border:1.5px solid #e06c6c"></span>Accused</div>
+    <div class="chip"><span class="sw circle" style="background:#0e7566;border:1.5px solid #3fae9d"></span>Witness</div>
+    <div class="chip"><span class="sw sq" style="background:#4c5560;border:1.5px solid #8d9aa8"></span>Evidence / document</div>
+    <div class="chip"><span class="sw rect" style="background:#4f46c8;border:1.5px solid #8d86ee"></span>Location / court</div>
+    <div class="lnk"><span class="line"></span>confirmed link</div>
+    <div class="lnk"><span class="dash"></span>suspected link</div>
+    <div class="keyfind"><b>AI key finding:</b> CCTV + PW statement + FSL place the accused at the scene; “prior enmity” link is suspected — verify.</div>
+  </div>
+</div>
+</body>
+</html>

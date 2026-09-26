@@ -355,3 +355,121 @@
 .dark .dms-app .cd-statutes span{background:rgba(255,255,255,.04)}
 .dms-app .cd-tabs button.on{color:#13233b}
 .dark .dms-app .cd-tabs button.on{color:#eef5fd}
+
+/* ---------- Notification bell (header) ---------- */
+.bell-wrap{position:relative}
+.bell-btn{position:relative;border:1px solid #cedcea;background:#f8fbfd;color:#1c5f90;border-radius:6px;padding:8px 9px;display:flex;align-items:center;cursor:pointer}
+.bell-btn svg{width:15px;height:15px}
+.bell-btn.on{background:#e7f5f5;border-color:#9fd4d4}
+.bell-count{position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;border-radius:8px;background:#d15959;color:#fff;font:700 9px/15px 'DM Sans';text-align:center;padding:0 3px}
+.bell-count:empty{display:none}
+.bell-panel{position:absolute;right:0;top:calc(100% + 9px);width:352px;max-height:430px;background:#fff;border:1px solid #dce6f1;border-radius:11px;box-shadow:0 18px 44px #1935572b;z-index:40;display:flex;flex-direction:column;overflow:hidden;color:#13233b}
+.bell-tabs{display:flex;gap:6px;align-items:center;padding:10px 12px;border-bottom:1px solid #edf2f7;background:#f7fafd}
+.bell-tabs button{border:1px solid #d3e2ef;background:transparent;color:#2b6398;border-radius:5px;padding:5px 9px;font-size:10px;cursor:pointer}
+.bell-tabs button.on{background:#e7f5f5;border-color:#9fd4d4;color:#0f5f68;font-weight:700}
+.bell-tabs .bell-clear{margin-left:auto;border:0;color:#778ca5}
+.bell-list{overflow-y:auto;max-height:360px}
+.bell-item{padding:11px 13px;border-top:1px solid #edf2f7;display:grid;gap:7px}
+.bell-item:first-child{border-top:0}
+.bell-item.unread{background:#f2fbfa}
+.bell-item b{font-size:11px;color:#1e3450}
+.bell-item p{font-size:10.5px;color:#41576f;margin:3px 0;line-height:1.45}
+.bell-item small{font-size:9px;color:#8b9cb0}
+.bell-actions{display:flex;gap:7px}
+.bell-actions button{display:flex;align-items:center;gap:4px;border:1px solid #cdddeb;background:#f6fafc;color:#1c5f90;border-radius:6px;padding:6px 10px;font-size:10px;cursor:pointer}
+.bell-actions button:first-child{background:#e4f6ed;border-color:#b5e3c6;color:#196b3d}
+.bell-actions button svg{width:12px;height:12px}
+.bell-done{font-size:9.5px;color:#8b9cb0}
+.bell-empty{font-size:10.5px;color:#8b9cb0;font-style:italic;padding:16px 13px}
+
+/* ---------- Pending collaboration banner ---------- */
+.collab-banner{position:fixed;left:292px;bottom:23px;z-index:9;background:#113b58;color:#fff;border-radius:8px;padding:11px 14px;font-size:11px;display:flex;gap:8px;align-items:center;box-shadow:0 12px 25px #113b5840;cursor:pointer}
+.collab-banner svg{width:15px;color:#ffd98a}
+@media(max-width:970px){.collab-banner{left:14px}}
+
+/* ---------- Doc history modal ---------- */
+.doc-history-modal{width:min(620px,94vw);max-height:84vh;overflow-y:auto;background:#fff;border-radius:13px;box-shadow:0 24px 60px #0a182a66;color:#13233b}
+.doc-history-meta{display:flex;flex-wrap:wrap;gap:9px;padding:13px 17px;border-bottom:1px solid #edf2f7;background:#f9fcff}
+.doc-history-meta span{display:flex;gap:5px;align-items:center;font-size:10px;color:#5e7895;background:#fff;border:1px solid #e3ecf4;border-radius:6px;padding:6px 9px}
+.doc-history-meta svg{width:13px;color:#158891}
+.doc-history-list{padding:7px 17px 13px}
+.doc-history-row{display:grid;grid-template-columns:34px 1fr;gap:11px;padding:11px 0;border-top:1px solid #edf2f7;align-items:flex-start}
+.doc-history-row:first-child{border-top:0}
+.doc-history-row i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#e6f5f5;color:#158891}
+.doc-history-row i svg{width:15px;height:15px}
+.doc-history-row.origin i{background:#e4f6ed;color:#1f8a5f}
+.doc-history-row b{font-size:11.5px;color:#1e3450}
+.doc-history-row>div>small{font-size:9.5px;color:#8b9cb0}
+.doc-history-row p{font-size:10.5px;color:#41576f;margin:3px 0 2px;line-height:1.45}
+.doc-history-row p small,.doc-history-row>div>small:last-child{display:block;font-size:9px;color:#8b9cb0}
+
+/* ---------- Invite collaborator modal ---------- */
+.invite-modal{width:min(500px,94vw);max-height:86vh;overflow-y:auto;background:#fff;border-radius:13px;box-shadow:0 24px 60px #0a182a66;color:#13233b;padding-bottom:15px}
+.invite-modal label{display:grid;gap:5px;font-size:10px;color:#5e7895;margin:12px 17px 0}
+.invite-modal input,.invite-modal select{border:1px solid #dce6f1;background:#f9fbfd;border-radius:6px;padding:9px;font-size:12px;color:#13233b}
+.invite-sub{font-size:10.5px;color:#5e7895;line-height:1.5;margin:11px 17px 0}
+.invite-preview{font-size:10.5px;color:#1f8a5f;margin:9px 17px 0;display:flex;gap:5px;align-items:center}
+.invite-preview.miss{color:#a36e13}
+.invite-preview svg{width:13px}
+.invite-error{font-size:10.5px;color:#b43e3e;margin:9px 17px 0;display:flex;gap:5px;align-items:center}
+.invite-error svg{width:13px}
+.invite-existing{margin:13px 17px 0;font-size:10px;color:#5e7895;display:grid;gap:6px}
+.invite-existing span{display:flex;gap:6px;align-items:center;background:#f6fafc;border:1px solid #e3ecf4;border-radius:6px;padding:6px 9px}
+.invite-existing span svg{width:12px;color:#158891}
+.invite-actions{display:flex;gap:9px;margin:16px 17px 0}
+.invite-actions button{display:flex;gap:6px;align-items:center;border-radius:7px;padding:10px 13px;font-weight:700;font-size:11px;cursor:pointer}
+.invite-actions .ghost{background:transparent;border:1px solid #cedcea;color:#425b78}
+.invite-actions button:not(.ghost){background:#59d7c6;color:#083443;border:0}
+.invite-actions button svg{width:14px}
+
+/* ---------- Collaborative workspace panel ---------- */
+.collab-panel{margin-top:16px}
+.collab-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.collab-head h3{display:flex;align-items:center;gap:7px;font-size:14px}
+.collab-head h3 svg{width:16px;color:#158891}
+.collab-head h3 small{font-size:9.5px;color:#8093a9;margin-left:5px}
+.collab-head button{display:flex;gap:6px;align-items:center;background:#e7f5f5;color:#0f5f68;border:0;border-radius:7px;padding:9px 12px;font-weight:700;font-size:10.5px;cursor:pointer}
+.collab-head button svg{width:14px}
+.collab-roster{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}
+.collab-chip{display:grid;background:#f6fafc;border:1px solid #e3ecf4;border-radius:8px;padding:7px 11px}
+.collab-chip b{font-size:11px;color:#1e3450}
+.collab-chip small{font-size:9px;color:#778ca5;margin-top:2px}
+.collab-chip.me{background:#e7f5f5;border-color:#9fd4d4}
+.collab-chip.pending{background:#fff7e2;border-color:#ecd9a8}
+.collab-chat{border:1px solid #e3ecf4;border-radius:10px;overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;min-height:290px;max-height:380px}
+.collab-chat-head{display:flex;gap:6px;align-items:center;padding:10px 13px;background:#f7fafd;font-size:11px;font-weight:700;color:#1e3450;border-bottom:1px solid #edf2f7}
+.collab-chat-head svg{width:14px;color:#158891}
+.collab-chat-head small{font-weight:400;font-size:9px;color:#8093a9;margin-left:4px}
+.collab-msgs{overflow-y:auto;padding:11px 13px;display:grid;gap:9px;background:#fdfefe}
+.collab-msg{max-width:78%}
+.collab-msg.mine{justify-self:end}
+.collab-msg-head{display:flex;gap:6px;align-items:baseline;margin-bottom:3px}
+.collab-msg-head b{font-size:10.5px;color:#1e3450}
+.collab-msg-head small{font-size:8.5px;color:#8b9cb0}
+.collab-msg p{margin:0;background:#eef4fa;border-radius:9px 9px 9px 2px;padding:8px 11px;font-size:11px;color:#22405e;line-height:1.45}
+.collab-msg.mine p{background:#e0f4f0;border-radius:9px 9px 2px 9px}
+.collab-msg.system .collab-sys{margin:0;font-size:9.5px;color:#778ca5;display:flex;gap:5px;align-items:center}
+.collab-msg.system .collab-sys svg{width:11px;color:#29956d}
+.collab-input{display:flex;gap:8px;padding:10px 13px;border-top:1px solid #edf2f7;background:#fff}
+.collab-input input{flex:1;border:1px solid #dce6f1;background:#f9fbfd;border-radius:7px;padding:9px 11px;font-size:11.5px;color:#13233b;outline:0}
+.collab-input input:focus{border-color:#9fd4d4}
+.collab-input button{border:0;background:#167d8a;color:#fff;border-radius:7px;padding:0 13px;display:grid;place-items:center;cursor:pointer}
+.collab-input button svg{width:15px}
+.integrity-actions,.retention-actions{display:flex;gap:8px;align-items:center}
+.integrity-actions button{background:#e7f5f5;color:#0f5f68;border:0;border-radius:5px;padding:6px 9px;font-size:10px;display:flex;gap:4px;align-items:center;cursor:pointer}
+.integrity-actions button:first-child{background:transparent;color:#1d7880}
+.integrity-actions button svg,.retention-actions button svg{width:12px}
+.retention-actions button{background:#edf5fb;color:#2a749f;border:0;border-radius:5px;padding:6px;font-size:9px;display:flex;gap:4px;align-items:center;cursor:pointer}
+.doc-pill.clickable{cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+.doc-pill.clickable svg{width:11px;color:#158891;opacity:.7}
+.doc-pill.clickable:hover{border-color:#9fd4d4;background:#f2fbfa}
+.clickable-doc{cursor:pointer}
+.clickable-doc:hover{text-decoration:underline}
+.doc-viewer-foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.doc-viewer-foot button{display:flex;gap:5px;align-items:center;border:1px solid #cedcea;background:#f8fbfd;color:#1c5f90;border-radius:6px;padding:7px 10px;font-size:10px;cursor:pointer;flex-shrink:0}
+.doc-viewer-foot button svg{width:13px}
+.upload-case-note{font-size:10px;color:#71839a;margin:6px 0 0}
+.upload-scope-note{font-size:9.5px;color:#8b9cb0;line-height:1.5;display:flex;gap:5px;align-items:flex-start;margin:8px 0 0}
+.upload-scope-note svg{width:12px;color:#29956d;flex-shrink:0;margin-top:1px}
+@media(max-width:720px){.bell-panel{width:min(320px,92vw)}.collab-msg{max-width:92%}.doc-viewer-foot{flex-direction:column;align-items:flex-start}}
+

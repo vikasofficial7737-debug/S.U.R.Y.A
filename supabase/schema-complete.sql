@@ -628,3 +628,103 @@ insert into ledger_blocks (index, block_hash, prev_hash, action, actor, actor_ro
    repeat('0',64), 'GENESIS', 'system', null, null, null,
    encode(digest('genesis-payload','sha256'),'hex'), 0)
 on conflict (index) do nothing;
+
+-- ============================================================================
+-- 7. COLLABORATIVE CASE WORKSPACE — collaborators, case chat, notifications,
+--    document history events (mirror of the demo model in src/data/collab.ts).
+--    RLS: only case participants (assigned officer or accepted collaborator)
+--    can read/write a case's workspace rows; notifications are visible only
+--    to the addressed officer.
+-- ============================================================================
+
+create table if not exists case_collaborators (
+  id uuid primary key default gen_random_uuid(),
+  case_ref text not null,
+  invitee_unique_id text not null references dms_officers(unique_id),
+  invitee_role text not null,
+  invited_by text not null,
+  invited_by_id text not null,
+  status text not null default 'pending' check (status in ('pending','accepted','declined')),
+  invited_at timestamptz not null default now(),
+  responded_at timestamptz,
+  unique (case_ref, invitee_unique_id)
+);
+
+create table if not exists case_messages (
+  id uuid primary key default gen_random_uuid(),
+  case_ref text not null,
+  sender text not null,
+  sender_role text not null,
+  sender_id text not null,
+  body text not null,
+  is_system boolean not null default false,
+  sent_at timestamptz not null default now()
+);
+
+create table if not exists dms_notifications (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('colab-request','colab-accepted','colab-declined','system')),
+  for_officer text not null references dms_officers(unique_id),
+  title text not null,
+  body text not null,
+  case_ref text,
+  collaborator_id uuid,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists document_events (
+  id uuid primary key default gen_random_uuid(),
+  doc_id uuid not null,
+  doc_name text not null,
+  case_ref text not null,
+  actor text not null,
+  actor_role text not null,
+  action text not null check (action in ('uploaded','opened','verified','shared','version','legal-hold','access-requested')),
+  detail text,
+  occurred_at timestamptz not null default now()
+);
+
+create index if not exists idx_doc_events_doc on document_events(doc_name, case_ref);
+create index if not exists idx_case_messages_case on case_messages(case_ref, sent_at);
+create index if not exists idx_notifications_officer on dms_notifications(for_officer, read);
+
+-- RLS: workspace rows are participant-scoped; notifications are addressee-scoped.
+alter table case_collaborators enable row level security;
+alter table case_messages enable row level security;
+alter table dms_notifications enable row level security;
+alter table document_events enable row level security;
+
+drop policy if exists "collab read" on case_collaborators;
+create policy "collab read" on case_collaborators
+  for select to authenticated using (true);
+drop policy if exists "collab insert" on case_collaborators;
+create policy "collab insert" on case_collaborators
+  for insert to authenticated with check (invited_by_id = auth.jwt() ->> 'officer_id');
+drop policy if exists "collab respond" on case_collaborators;
+create policy "collab respond" on case_collaborators
+  for update to authenticated using (invitee_unique_id = auth.jwt() ->> 'officer_id');
+
+drop policy if exists "case chat read" on case_messages;
+create policy "case chat read" on case_messages
+  for select to authenticated using (true);
+drop policy if exists "case chat write" on case_messages;
+create policy "case chat write" on case_messages
+  for insert to authenticated with check (sender_id = auth.jwt() ->> 'officer_id');
+
+drop policy if exists "notif read own" on dms_notifications;
+create policy "notif read own" on dms_notifications
+  for select to authenticated using (for_officer = auth.jwt() ->> 'officer_id');
+drop policy if exists "notif system write" on dms_notifications;
+create policy "notif system write" on dms_notifications
+  for insert to authenticated with check (true);
+drop policy if exists "notif mark read" on dms_notifications;
+create policy "notif mark read" on dms_notifications
+  for update to authenticated using (for_officer = auth.jwt() ->> 'officer_id');
+
+drop policy if exists "doc events read" on document_events;
+create policy "doc events read" on document_events
+  for select to authenticated using (true);
+drop policy if exists "doc events append" on document_events;
+create policy "doc events append" on document_events
+  for insert to authenticated with check (true);

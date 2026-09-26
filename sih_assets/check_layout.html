@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#777; font-family:'Segoe UI',Calibri,Arial,sans-serif; }
+  .slide { width:1280px; height:720px; background:#fff; margin:20px auto; position:relative; overflow:hidden; box-shadow:0 2px 14px rgba(0,0,0,.4); }
+  .label { position:absolute; top:4px; left:8px; color:#fff; font:bold 12px sans-serif; background:#c00; padding:2px 8px; z-index:10; }
+  /* slide2 */
+  .s2-title { position:absolute; left:30px; top:40px; right:30px; font-size:20px; font-weight:700; color:#1F2A3A; }
+  .s2-body { position:absolute; left:30px; top:61px; right:30px; height:186px; font-size:10.5px; color:#1F2A3A; line-height:1.25; }
+  .s2-body b { color:#1F4E79; }
+  .s2-body p { margin-bottom:3px; }
+  .s2-img { position:absolute; left:63px; top:270px; width:629px; height:183px; border:1px dashed #999; }
+  /* slide3 */
+  .s3-title { position:absolute; left:30px; top:40px; font-size:20px; font-weight:700; color:#1F2A3A; }
+  .s3-img { position:absolute; left:28px; top:117px; width:470px; height:265px; border:1px dashed #999; }
+  .s3-body { position:absolute; left:520px; top:97px; right:28px; height:363px; font-size:10.5px; color:#1F2A3A; line-height:1.25; }
+  .s3-body b { color:#1F4E79; }
+  .s3-body p { margin-bottom:3px; }
+  img { width:100%; height:100%; object-fit:fill; display:block; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="label">SLIDE 2 — IDEA (1280x720 = 13.33x7.5in)</div>
+  <div class="s2-title">S.U.R.Y.A. — Blockchain-Secured Digital Document &amp; Case Management Platform</div>
+  <div class="s2-body">
+    <p><b>Proposed Solution</b></p>
+    <p>S.U.R.Y.A. (Smart Unified Resource for Judicial Assistance) is a blockchain-anchored digital Document Management System giving every case document — FIR, investigation record, witness statement, charge sheet, evidence record, forensic report, judgment — one tamper-evident, access-controlled, fully auditable digital life.</p>
+    <p><b>How it addresses the problem</b></p>
+    <p>• Unique Case ID (e.g. CR/124/2026) is the single key — retrieve all related documents instantly, ending scattered drives and email silos.</p>
+    <p>• Role-based access control (6 official roles) + case-level permission: cross-case needs go through access requests approved by the System Admin.</p>
+    <p>• SHA-256 hash chain + Polygon anchoring make tampering cryptographically detectable; corrections only as new ledger-anchored versions (version control).</p>
+    <p>• Every document open logged in an append-only audit trail; digital signatures &amp; chain-of-custody for evidence records (IT Act §65B-ready).</p>
+    <p><b>Innovation and uniqueness</b></p>
+    <p>• Trust layer, not storage layer: only hashes go on-chain — tampering becomes detectable, not just harder.</p>
+    <p>• Connected Case Graph (below, live in prototype): AI-explained network of victim, accused, witness, evidence &amp; court…</p>
+  </div>
+  <div class="s2-img"><img src="case_graph_banner.png"></div>
+</div>
+<div class="slide">
+  <div class="label">SLIDE 3 — TECHNICAL APPROACH</div>
+  <div class="s3-title">TECHNICAL APPROACH</div>
+  <div class="s3-img"><img src="case_graph_banner.png" style="display:none"></div>
+  <div class="s3-img" style="background:#dde6ef"><img src="../SURYA_Architecture_BlockDiagram.png"></div>
+  <div class="s3-body">
+    <p><b>Technologies to be used</b></p>
+    <p>React 18 + TypeScript (Vite SPA) · Supabase Postgres with Row-Level Security (13 RLS tables) · SHA-256 append-only hash ledger · Polygon Amoy anchoring (graceful offline fallback) · Google Gemini AI · DigiLocker-style Aadhaar-aligned OTP identity binding.</p>
+    <p><b>Methodology and process for implementation</b></p>
+    <p>① Phone + OTP identity verification; phone ↔ Unique-ID binding enforced both ways.</p>
+    <p>② Role-based dashboard loads the officer's active caseload (unique case IDs).</p>
+    <p>③ Case-centric repository: immutable viewer; every document open logged.</p>
+    <p>④ Upload/view/correction → SHA-256 hash → ledger block → Polygon Amoy anchor.</p>
+    <p>⑤ Cross-case need? Access request → System Admin approval → permissioned, logged access.</p>
+    <p>⑥ AI assistant retrieves permissioned documents and explains the case graph (left).</p>
+    <p><b>Architecture (block diagram, left)</b></p>
+    <p>Users &amp; access → application layer → security &amp; governance → intelligence · data · trust (Gemini AI, Postgres RLS, SHA-256 + Polygon anchoring).</p>
+  </div>
+</div>
+</body>
+</html>
