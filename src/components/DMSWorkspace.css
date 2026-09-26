@@ -249,3 +249,109 @@
 .suite-admin .dms-panel h3{display:flex;align-items:center;gap:6px;font-size:14px;margin:0 0 6px}
 .suite-admin .dms-panel h3 svg{width:16px;color:#168a94}
 @media(max-width:900px){.suite-admin .admin-kpis{grid-template-columns:1fr 1fr}}
+
+/* ---- Case-centric DMS: active cases, repository cards, case workspace ---- */
+.kpi-clickable{transition:transform .12s ease,box-shadow .12s ease}
+.kpi-clickable:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(19,53,87,.14)}
+.kpi-clickable:focus-visible{outline:2px solid #1e56c4;outline-offset:2px}
+
+.cases-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:4px}
+.case-card{display:flex;flex-direction:column;gap:8px;padding:16px}
+.case-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.case-card-head h3{margin:0;font-size:15px;flex:1;min-width:120px}
+.case-chip{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;background:rgba(30,86,196,.1);color:#1e56c4;border:1px solid rgba(30,86,196,.25);border-radius:6px;padding:3px 7px;white-space:nowrap}
+.case-card-meta{margin:0;font-size:11px;opacity:.65}
+.case-card-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;opacity:.85}
+.case-card-stats span{display:inline-flex;align-items:center;gap:4px}
+.case-card-stats svg{width:12px;height:12px}
+.case-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.case-card-actions button{display:inline-flex;align-items:center;gap:5px;font-size:10px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
+.case-card-actions button:disabled{opacity:.45;cursor:not-allowed}
+.case-card-actions button.primary{background:#1e56c4;border-color:#1e56c4;color:#fff}
+.case-card-actions button.primary:disabled{background:rgba(30,86,196,.4);border-color:transparent}
+.case-card-actions svg{width:12px;height:12px}
+
+.repo-cases{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:12px}
+.repo-case-card{display:flex;flex-direction:column;gap:7px;padding:16px}
+.repo-case-card.locked{opacity:.88;border-style:dashed}
+.repo-case-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.repo-case-card h3{margin:0;font-size:15px}
+.repo-case-meta{margin:0;font-size:11px;opacity:.65}
+.repo-case-docs{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0}
+.doc-pill{font-size:9px;background:rgba(19,53,87,.06);border:1px solid var(--line);border-radius:999px;padding:3px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-pill.dim{opacity:.5;font-style:italic}
+.doc-pill.more,.doc-pill.none{opacity:.7}
+.repo-case-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:auto}
+.repo-case-actions button{display:inline-flex;align-items:center;gap:5px;font-size:10px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
+.repo-case-actions button.primary{background:#1e56c4;border-color:#1e56c4;color:#fff}
+.repo-case-actions svg{width:12px;height:12px}
+.repo-locked-note{font-size:9px;opacity:.6;display:inline-flex;align-items:center;gap:4px;width:100%}
+.repo-locked-note svg{width:11px;height:11px}
+
+.case-work-layout{display:grid;grid-template-columns:1.7fr 1fr;gap:14px;margin-top:12px;align-items:start}
+.case-work-side{display:flex;flex-direction:column;gap:14px}
+.tl-row{display:flex;align-items:baseline;gap:8px;font-size:10px;padding:5px 0;border-bottom:1px dashed var(--line);margin:0}
+.tl-row:last-child{border-bottom:none}
+.tl-row span{width:18px;height:18px;border-radius:50%;background:rgba(19,53,87,.08);display:inline-flex;align-items:center;justify-content:center;font-size:9px;flex:0 0 auto;align-self:center}
+.tl-row.active span{background:#1e56c4;color:#fff}
+.tl-row small{opacity:.6;margin-left:auto;white-space:nowrap}
+.evidence-mini{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-bottom:1px dashed var(--line);margin:0;font-size:11px}
+.evidence-mini:last-child{border-bottom:none}
+.evidence-mini small{opacity:.6;font-size:9px}
+
+.doc-row-actions{display:flex;gap:5px}
+.doc-row-actions button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
+.doc-row-actions button:hover{background:rgba(30,86,196,.08);border-color:#1e56c4;color:#1e56c4}
+.doc-row-actions svg{width:13px;height:13px}
+.immut-note{display:flex;align-items:center;gap:6px;font-size:9px;opacity:.6;margin:10px 0 2px}
+.immut-note svg{width:12px;height:12px;flex:0 0 auto}
+
+.no-access-note{display:flex;gap:12px;align-items:flex-start;margin-top:12px;border-left:3px solid #a93636}
+.no-access-note>svg{width:20px;height:20px;color:#a93636;flex:0 0 auto;margin-top:2px}
+.no-access-note p{margin:4px 0 8px;font-size:11px}
+.no-access-note button{display:inline-flex;align-items:center;gap:5px;font-size:10px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer}
+.no-access-note svg{width:12px;height:12px}
+
+.modal-scrim{position:fixed;inset:0;background:rgba(10,20,35,.55);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px}
+.dms-graph-modal{background:var(--paper,#fff);border-radius:14px;max-width:960px;width:100%;max-height:92vh;overflow:auto;padding:18px;box-shadow:0 30px 80px rgba(5,15,30,.35)}
+.dms-graph-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.dms-graph-head small{font-size:9px;letter-spacing:.08em;opacity:.6;text-transform:uppercase}
+.dms-graph-head h3{margin:2px 0 0;font-size:16px}
+.dms-graph-head button,.doc-viewer-head button{border:1px solid var(--line);background:transparent;border-radius:8px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:inherit}
+.dms-graph-head svg,.doc-viewer-head svg{width:14px;height:14px}
+.dms-graph-body{font-size:12px}
+.dms-graph-note{display:flex;align-items:center;gap:6px;font-size:9px;opacity:.6;margin:10px 0 0}
+.dms-graph-note svg{width:12px;height:12px}
+
+.doc-viewer{background:var(--paper,#fff);border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow:auto;padding:18px;box-shadow:0 30px 80px rgba(5,15,30,.35)}
+.doc-viewer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.doc-viewer-head small{font-size:9px;letter-spacing:.08em;opacity:.6;text-transform:uppercase;display:block}
+.doc-viewer-head h3{margin:3px 0 5px;font-size:15px}
+.doc-viewer-meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:10px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.doc-viewer-meta span{display:inline-flex;align-items:center;gap:5px}
+.doc-viewer-meta svg{width:12px;height:12px;opacity:.7}
+.doc-viewer-meta code{font-size:9px}
+.doc-viewer-body{position:relative;padding:16px 4px;font-size:12px;line-height:1.6}
+.doc-viewer-body .watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;letter-spacing:.14em;color:rgba(19,53,87,.06);pointer-events:none;transform:rotate(-14deg)}
+.doc-viewer-note{display:flex;align-items:center;gap:6px;font-size:9px;opacity:.6}
+.doc-viewer-note svg{width:12px;height:12px}
+@media(max-width:900px){.case-work-layout{grid-template-columns:1fr}}
+
+/* ---- Tabbed case dossier (mirrors the lawyer module's CaseDossier) ---- */
+.case-dossier{padding:6px 18px 18px}
+.case-dossier>.cd-tabs{margin-top:2px}
+.cd-h{font-size:14px;margin:14px 0 0}
+.cd-party-card h3{font-size:13px}
+.cd-locked-docs{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:26px 8px;color:var(--muted)}
+.cd-locked-docs svg{width:22px;height:22px;color:#a93636}
+.cd-locked-docs b{color:var(--ink);font-size:13px}
+.cd-locked-docs p{margin:0;font-size:11.5px;line-height:1.6;max-width:560px}
+.cd-locked-docs button{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;cursor:pointer;margin-top:4px}
+.cd-locked-docs button svg{width:13px;height:13px;color:inherit}
+/* The dms-app scope has its own paper/bg vars; ensure cd-* panels look right inside DMS */
+.dms-app .cd-stage{background:rgba(19,53,87,.03)}
+.dark .dms-app .cd-stage{background:rgba(255,255,255,.04)}
+.dms-app .cd-statutes span{background:rgba(19,53,87,.03)}
+.dark .dms-app .cd-statutes span{background:rgba(255,255,255,.04)}
+.dms-app .cd-tabs button.on{color:#13233b}
+.dark .dms-app .cd-tabs button.on{color:#eef5fd}

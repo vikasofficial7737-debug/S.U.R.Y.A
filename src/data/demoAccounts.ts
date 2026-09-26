@@ -1,4 +1,4 @@
-/* Demo credentials for the NyayaVault DMS sign-in.
+/* Demo credentials for the S.U.R.Y.A. DMS sign-in.
    Kept in a data file (not rendered anywhere in the login UI) so the
    interface keeps a formal government-portal look. Demo only — a real
    deployment authenticates against a server with hashed credentials. */

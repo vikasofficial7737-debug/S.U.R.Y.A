@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 /**
- * DocumentAnchor — NyayaVault integrity anchor (Polygon Amoy testnet).
+ * DocumentAnchor — S.U.R.Y.A. integrity anchor (Polygon Amoy testnet).
  *
  * Design rules (per integration spec §1):
  *   • ONLY SHA-256 hashes + opaque document/version references go on-chain.

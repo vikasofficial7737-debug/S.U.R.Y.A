@@ -78,7 +78,7 @@ const SERVICE: Record<string, ServiceRecord> = {
     designation: 'System Admin', batch: '2015 · Platform Operations', rank: 'Chief Platform Administrator',
     serviceYears: '11 years 0 months', joinedOn: '01 Apr 2015',
     currentPosting: { unit: 'Platform Administration', station: 'National Data Centre (Demo)', since: 'Jul 2020' },
-    jurisdiction: 'National', contact: 'ext. 1000 · admin@nyayavault.gov.in (demo)',
+    jurisdiction: 'National', contact: 'ext. 1000 · admin@surya.gov.in (demo)',
     clearance: 'HIGHLY RESTRICTED', permissions: ['USER_MANAGE', 'USER_CREATE', 'AUDIT_VIEW', 'AUDIT_EXPORT', 'DOCUMENT_VIEW', 'REPORT_GENERATE'],
     postings: [
       { at: 'Jul 2020 — present', role: 'Chief Platform Administrator', place: 'National Data Centre (Demo)' },

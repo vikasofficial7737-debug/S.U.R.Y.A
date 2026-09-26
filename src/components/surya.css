@@ -44,3 +44,18 @@
 /* Subtitle under the wordmark: full project title + tagline */
 .sl-sub-title{position:relative;z-index:1;font:600 clamp(13px,1.7vw,17px)/1.4 Georgia,serif;color:#33475c;margin:16px 0 0;text-align:center;letter-spacing:.2px}
 .sl-landing.sl-dark .sl-sub-title{color:#c9d9e8}
+
+/* ---- Login button: water-ripple animation (expanding rings, like a drop in water) ---- */
+.sl-login{overflow:visible}
+.sl-login::before,.sl-login::after{content:'';position:absolute;inset:0;border-radius:999px;border:2px solid rgba(19,35,59,.45);pointer-events:none;animation:sl-ripple 2.6s ease-out infinite;z-index:-1}
+.sl-login::after{animation-delay:.85s}
+.sl-landing.sl-dark .sl-login::before,.sl-landing.sl-dark .sl-login::after{border-color:rgba(120,220,235,.5)}
+@keyframes sl-ripple{
+  0%{transform:scale(1);opacity:.75}
+  70%{opacity:.15}
+  100%{transform:scale(1.55);opacity:0}
+}
+/* third ring for a fuller wave */
+.sl-login .sl-ripple-ring{position:absolute;inset:0;border-radius:999px;border:2px solid rgba(19,35,59,.45);pointer-events:none;animation:sl-ripple 2.6s ease-out infinite;animation-delay:1.7s;z-index:-1}
+.sl-landing.sl-dark .sl-login .sl-ripple-ring{border-color:rgba(120,220,235,.5)}
+@media(prefers-reduced-motion:reduce){.sl-login::before,.sl-login::after,.sl-login .sl-ripple-ring{animation:none;display:none}}

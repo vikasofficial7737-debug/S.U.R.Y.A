@@ -1,4 +1,4 @@
-/* Government-portal theme for the NyayaVault landing + DMS login */
+/* Government-portal theme for the S.U.R.Y.A. landing + DMS login */
 .gov-topbar{max-width:1200px;margin:0 auto;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#5b6b7c}
 .gov-topbar-left{display:flex;align-items:center;gap:8px}.gov-topbar-left svg{width:16px;color:#1a4d8f}
 .gov-topbar-right{display:flex;align-items:center;gap:10px}

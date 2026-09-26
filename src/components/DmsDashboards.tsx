@@ -5,11 +5,19 @@ import { getBridgeAccessEvents } from '../data/bridgeAudit';
 /* ---------- shared bits ---------- */
 type DashProps = { docs: DmsDocument[]; audit: Audit[]; setPage: (p: DmsPage) => void; role: DmsRole; sessionName?: string };
 
-const Kpis = ({ items }: { items: { icon: any; n: any; label: string; tone?: string }[] }) =>
-  <section className="dms-kpis">{items.map((k, i) => <Kpi key={i} {...k} />)}</section>;
+const Kpis = ({ items, onGo }: { items: { icon: any; n: any; label: string; tone?: string; go?: DmsPage }[]; onGo?: (p: DmsPage) => void }) =>
+  <section className="dms-kpis">{items.map((k, i) => <Kpi key={i} {...k} onGo={onGo} />)}</section>;
 
-function Kpi({ icon: Icon, n, label, tone = 'blue' }: { icon: any; n: any; label: string; tone?: string }) {
-  return <article className={'dms-kpi ' + tone}><Icon /><div><b>{n}</b><span>{label}</span></div></article>;
+/* KPI cards are clickable when a destination page is given — e.g. 'Active cases'
+   jumps straight to the Active Cases desk. */
+function Kpi({ icon: Icon, n, label, tone = 'blue', go, onGo }: { icon: any; n: any; label: string; tone?: string; go?: DmsPage; onGo?: (p: DmsPage) => void }) {
+  const body = <><Icon /><div><b>{n}</b><span>{label}</span></div></>;
+  if (!go || !onGo) return <article className={'dms-kpi ' + tone}>{body}</article>;
+  return <article className={'dms-kpi kpi-clickable ' + tone} role="button" tabIndex={0}
+    onClick={() => onGo(go)} onKeyDown={e => { if (e.key === 'Enter') onGo(go); }}
+    title={'Open ' + label}>
+    {body}
+  </article>;
 }
 
 const PanelHead = ({ icon: Icon, title, sub, action }: { icon?: any; title: string; sub?: string; action?: { label: string; go: () => void } }) =>
@@ -38,9 +46,9 @@ function SuperAdminDash({ docs, audit, setPage }: DashProps) {
       <p>Organizations, users, permissions, and security across the entire platform.</p>
       <button onClick={() => setPage('admin')}><Users />User &amp; department management</button>
     </div><div className="vault-illustration"><LockKeyhole /><UserCheck /><ShieldCheck /></div></section>
-    <Kpis items={[
+    <Kpis onGo={setPage} items={[
       { icon: Users, n: '5', label: 'Active users (5 departments)' },
-      { icon: FolderClosed, n: '3', label: 'Active cases' },
+      { icon: FolderClosed, n: '3', label: 'Active cases', go: 'cases' },
       { icon: FileText, n: docs.length, label: 'Total documents' },
       { icon: ClipboardList, n: docs.filter(d => d.status === 'Pending verification').length, label: 'Pending approvals', tone: 'amber' },
       { icon: ShieldAlert, n: docs.filter(d => d.status === 'Flagged').length, label: 'Integrity flags', tone: 'red' },
@@ -74,8 +82,8 @@ function IODash({ docs, audit, setPage }: DashProps) {
       <p>Upload FIRs, register evidence, and keep every investigation record verifiable.</p>
       <button onClick={() => setPage('upload')}><Upload />Upload &amp; digitize a document</button>
     </div><div className="vault-illustration"><FileText /><Fingerprint /><ShieldCheck /></div></section>
-    <Kpis items={[
-      { icon: FolderClosed, n: '1', label: 'My active cases' },
+    <Kpis onGo={setPage} items={[
+      { icon: FolderClosed, n: '1', label: 'My active cases', go: 'cases' },
       { icon: ClipboardList, n: tasks.length, label: 'Pending tasks', tone: 'amber' },
       { icon: Upload, n: docs.filter(d => d.department === 'Jaipur Police').length, label: 'My uploads' },
       { icon: Fingerprint, n: docs.filter(d => d.status === 'Verified').length, label: 'Verified documents', tone: 'green' },
@@ -107,7 +115,8 @@ function ForensicDash({ docs, setPage }: DashProps) {
       <p>Verify hashes on receipt, record examinations, sign your reports — every transfer is on the custody chain.</p>
       <button onClick={() => setPage('integrity')}><Fingerprint />Verify evidence integrity</button>
     </div><div className="vault-illustration"><FlaskConical /><Fingerprint /><BadgeCheck /></div></section>
-    <Kpis items={[
+    <Kpis onGo={setPage} items={[
+      { icon: FolderClosed, n: '1', label: 'My active cases', go: 'cases' },
       { icon: FlaskConical, n: evidence.length, label: 'Assigned evidence' },
       { icon: ClipboardList, n: '1', label: 'Pending examinations', tone: 'amber' },
       { icon: FileText, n: reports.length, label: 'My lab reports on record' },
@@ -136,7 +145,8 @@ function CourtDash({ docs, setPage }: DashProps) {
       <p>Read-only access to authorized records. Verify hashes, signatures and version chains before acceptance.</p>
       <button onClick={() => setPage('integrity')}><BadgeCheck />Verification report</button>
     </div><div className="vault-illustration"><Gavel /><ShieldCheck /><FileText /></div></section>
-    <Kpis items={[
+    <Kpis onGo={setPage} items={[
+      { icon: FolderClosed, n: '2', label: 'Assigned cases', go: 'cases' },
       { icon: FileText, n: filings.length, label: 'Authorized records visible' },
       { icon: BadgeCheck, n: filings.filter(d => d.signed).length, label: 'Signatures valid', tone: 'green' },
       { icon: Fingerprint, n: filings.filter(d => d.status === 'Verified').length, label: 'Hash verified' },
@@ -170,8 +180,8 @@ function LegalDash({ docs, setPage }: DashProps) {
       <p>Review records, draft charge sheets, request missing documents, and prepare the case bundle.</p>
       <button onClick={() => setPage('search')}><Search />Search case documents</button>
     </div><div className="vault-illustration"><Scale /><FileText /><PenLine /></div></section>
-    <Kpis items={[
-      { icon: Briefcase, n: '1', label: 'Cases assigned' },
+    <Kpis onGo={setPage} items={[
+      { icon: Briefcase, n: '1', label: 'Cases assigned', go: 'cases' },
       { icon: ClipboardList, n: reviews.filter(d => d.status !== 'Verified').length, label: 'Documents to review', tone: 'amber' },
       { icon: FileText, n: reviews.length, label: 'Records reviewed / in review' },
       { icon: BrainCircuit, n: '1', label: 'AI case briefs ready', tone: 'green' },
@@ -206,7 +216,7 @@ function ComplianceDash({ docs, audit, setPage }: DashProps) {
       <p>Retention schedules, legal holds, integrity events, and full auditability across departments.</p>
       <button onClick={() => setPage('audit')}><Download />Export audit report</button>
     </div><div className="vault-illustration"><History /><Fingerprint /><ShieldCheck /></div></section>
-    <Kpis items={[
+    <Kpis onGo={setPage} items={[
       { icon: History, n: audit.length + bridge, label: 'Total audit events' },
       { icon: Upload, n: docs.length, label: 'Documents under lifecycle' },
       { icon: LockKeyhole, n: holds, label: 'Legal holds active', tone: 'amber' },

@@ -39,7 +39,7 @@ export function DmsLogin({ onBack, onLogin, dark, setDark }: { onBack: () => voi
     <main className="gov-login-main">
       <section className="gov-login-aside">
         <div className="gov-shield"><LockKeyhole /></div>
-        <h1>NyayaVault</h1>
+        <h1>S.U.R.Y.A.</h1>
         <p className="gov-tag">One secure record, from the first report to the final judgment.</p>
         <ul>
           <li><ShieldCheck /> Role-based access with a full audit trail</li>
@@ -75,7 +75,7 @@ export function DmsLogin({ onBack, onLogin, dark, setDark }: { onBack: () => voi
 
         <div className="gov-login-foot">
           <span>Forgot password? Contact your nodal officer.</span>
-          <span>Citizen? Use the <b>NyayaVault public suite</b> on the portal home — no login needed.</span>
+          <span>Citizen? Use the <b>S.U.R.Y.A. public suite</b> on the portal home — no login needed.</span>
         </div>
       </section>
     </main>

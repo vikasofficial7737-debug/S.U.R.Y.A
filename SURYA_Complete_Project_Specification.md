@@ -1,4 +1,4 @@
-NyayaVault --- National Blockchain-Secured Digital Document & Case
+S.U.R.Y.A. --- National Blockchain-Secured Digital Document & Case
 Management Platform
 
 Complete Project Specification, Blockchain Architecture, Role-Based
@@ -8,7 +8,7 @@ the S.U.R.Y.A. Legal Intelligence Suite as an Integrated Module
 How to use this document: This is a single, self-contained build brief,
 written the way a senior architect would hand it to a development team,
 a design team, or an AI coding tool, with no open questions left for
-guesswork. NyayaVault --- the blockchain-secured Document Management
+guesswork. S.U.R.Y.A. --- the blockchain-secured Document Management
 System (DMS) --- is the primary product. Everything about identity,
 navigation, branding, and the home page is designed around it.
 S.U.R.Y.A. --- the existing AI citizen/lawyer/student assistant --- is
@@ -74,7 +74,7 @@ if the wrong person can simply open the file.
 The core gap: every one of the problems above is fundamentally a trust
 and integrity problem, not a storage problem. Simply \"putting the files
 in the cloud\" does not tell anyone whether the file they\'re looking at
-is the same one that was originally filed. NyayaVault exists to close
+is the same one that was originally filed. S.U.R.Y.A. exists to close
 that specific gap.
 
 1.2 Problem Statement (Expanded)
@@ -170,36 +170,36 @@ Ministry of Law & Justice--grade system
 Stakeholder Primary need Platform surface
 
 Investigating Officer (Police) File FIRs, upload evidence, manage
-exhibits, build a case NyayaVault (primary system)
+exhibits, build a case S.U.R.Y.A. (primary system)
 
 Records Officer / Registrar Classify, verify, version-control, retain
-documents NyayaVault
+documents S.U.R.Y.A.
 
 Forensic Analyst Submit reports tied to specific exhibits only
-NyayaVault
+S.U.R.Y.A.
 
 Judicial Officer / Court Clerk File orders, digitally sign judgments,
-grant disclosure NyayaVault
+grant disclosure S.U.R.Y.A.
 
 Compliance / System Administrator Govern users, roles, retention, and
-the audit trail --- without reading case content NyayaVault
+the audit trail --- without reading case content S.U.R.Y.A.
 
 Practicing Lawyer Work their own cases, receive disclosed documents, get
-AI summaries S.U.R.Y.A. module (reads permissioned NyayaVault data)
+AI summaries S.U.R.Y.A. module (reads permissioned S.U.R.Y.A. data)
 
 Citizen Understand rights and procedures, find a lawyer S.U.R.Y.A.
-module (no NyayaVault access)
+module (no S.U.R.Y.A. access)
 
 Law Student Learn from simplified, anonymized case studies S.U.R.Y.A.
 module (public/redacted data only)
 
-The relationship, stated plainly: NyayaVault is the system of record ---
+The relationship, stated plainly: S.U.R.Y.A. is the system of record ---
 the secure, blockchain-verified vault that every legal document and
 evidence item actually lives in. S.U.R.Y.A. is a client of that record:
 an AI-powered convenience layer for the three public/professional roles
 that already existed. A lawyer\'s AI-generated case summary inside
 S.U.R.Y.A. is only ever a summary of a document that physically lives,
-and is verified, inside NyayaVault.
+and is verified, inside S.U.R.Y.A..
 
 S.U.R.Y.A., spelled out (confirmed, as already implemented): Smart
 Unified Resource for Judicial Assistance. This exact expansion is now
@@ -245,7 +245,7 @@ holds Compliance/Admin Audit explorer + retention engine
 
 9 S.U.R.Y.A. Integration Preserve and reconnect the existing
 citizen/lawyer/student AI suite Existing SURYA codebase Read-scoped
-bridge into NyayaVault data
+bridge into S.U.R.Y.A. data
 
 10 Public Transparency RTI request handling, public
 document-verification tool General public RTI portal + blockchain
@@ -326,9 +326,9 @@ Practicing Lawyer
 
 General Public
 
-NyayaVault Public Site
+S.U.R.Y.A. Public Site
 
-NyayaVault Institutional App
+S.U.R.Y.A. Institutional App
 
 S.U.R.Y.A. Module
 
@@ -471,7 +471,7 @@ note.
 public/permissionless chain (Ethereum mainnet, etc.) is wrong for this
 use case --- case data is sensitive, transaction costs are
 unpredictable, and no government agency should depend on an external,
-ungoverned validator set for evidentiary infrastructure. NyayaVault uses
+ungoverned validator set for evidentiary infrastructure. S.U.R.Y.A. uses
 Hyperledger Fabric, a permissioned blockchain where every node belongs
 to a known, accountable organization.
 
@@ -669,7 +669,7 @@ in scope and design --- this requirement is about reconnection, not
 redesign.
 
 The lawyer\'s case-connection graph now populates from real, disclosed
-NyayaVault case data instead of demo data.
+S.U.R.Y.A. case data instead of demo data.
 
 AI calls move server-side (Part 2.3, AI Proxy Service) --- closing the
 browser-exposed-API-key gap the existing project\'s own README already
@@ -769,7 +769,7 @@ Institutional attribution bar Slim top strip above the main header:
 \"Government of India · \[Department name\] (Demo)\" with a bilingual
 EN/हिन्दी toggle at the far right
 
-Product identity \"NyayaVault\" set in a serif display face (e.g.,
+Product identity \"S.U.R.Y.A.\" set in a serif display face (e.g.,
 Source Serif 4 / Playfair Display), paired with a plain-sans subtitle:
 \"Unified Legal & Judicial Records Platform\"
 
@@ -811,7 +811,7 @@ They are documented here precisely so future prompts stop re-litigating
 them.
 
 A. The S.U.R.Y.A. module identity (its own internal hero, used inside
-the module only, never on the NyayaVault home page hero):
+the module only, never on the S.U.R.Y.A. home page hero):
 
 A small rotating chakra/wheel glyph above the wordmark.
 
@@ -833,10 +833,10 @@ A dark-mode toggle (moon/sun icon) in the top-right corner.
 
 Where this appears now: this is the correct hero for the S.U.R.Y.A.
 module\'s own landing screen (reached after clicking through from the
-NyayaVault home page). It must be replaced on the platform\'s actual
-home page by the NyayaVault hero described in Part 5.5, Page 1 --- the
+S.U.R.Y.A. home page). It must be replaced on the platform\'s actual
+home page by the S.U.R.Y.A. hero described in Part 5.5, Page 1 --- the
 two are not interchangeable, and the current build has the SURYA hero
-sitting where the NyayaVault hero belongs. See Part 6 for the exact fix.
+sitting where the S.U.R.Y.A. hero belongs. See Part 6 for the exact fix.
 
 B. The role-selection card (approved, extend to all three roles, do not
 restyle):
@@ -869,7 +869,7 @@ Public site header (unauthenticated): Attribution bar → logo + tagline →
 primary nav (Home · Departments · RTI · Contact) → language toggle. No
 role-specific navigation is shown until sign-in.
 
-Institutional app shell (authenticated, NyayaVault): Left sidebar,
+Institutional app shell (authenticated, S.U.R.Y.A.): Left sidebar,
 persistent across all Vault pages, rendered differently per role (not
 the same list with items disabled --- see 5.4): sidebar entries only
 exist if that role can use them. A top bar shows the signed-in
@@ -1007,7 +1007,7 @@ case document\'s content.
 
 Page 1 --- Home / Landing
 
-Purpose: establish NyayaVault as the primary institutional system, with
+Purpose: establish S.U.R.Y.A. as the primary institutional system, with
 S.U.R.Y.A. clearly positioned underneath it, and route every visitor to
 the right next step.
 
@@ -1018,7 +1018,7 @@ Page anatomy (top to bottom):
 Attribution bar: \"Government of India · Unified Legal & Judicial
 Records Platform · \[Ministry/Department\] (Demo)\" + language toggle.
 
-Header: NyayaVault mark + tagline, nav (Home · Departments · RTI ·
+Header: S.U.R.Y.A. mark + tagline, nav (Home · Departments · RTI ·
 Contact).
 
 Hero: eyebrow label \"Secure Digital Document Management System\";
@@ -1045,14 +1045,14 @@ to SURYA + disclosed documents.
 
 Page 2 --- Institutional Sign-in
 
-Purpose: the actual entry point into NyayaVault --- deliberately
+Purpose: the actual entry point into S.U.R.Y.A. --- deliberately
 separated from the public hero so it reads as a controlled-access
 system, not a consumer login form.
 
 Accessible to: anyone attempting institutional access; only the five
 institutional roles can successfully authenticate here.
 
-Page anatomy: split layout. Left panel (dark navy): the NyayaVault mark,
+Page anatomy: split layout. Left panel (dark navy): the S.U.R.Y.A. mark,
 the tagline, and three short trust statements (\"Role-based access with
 a full audit trail,\" \"Hash-verified document integrity,\" \"Encrypted,
 permissioned case files\"), closing with \"Authorised personnel only.
@@ -1152,7 +1152,7 @@ Accessibility Statement, and a short \"How we secure your data\" section
 referencing the encryption and blockchain-integrity approach in plain
 language (linking to Page 3\'s fuller explainer).
 
-5.5 Page-by-Page Design --- NyayaVault Institutional Pages
+5.5 Page-by-Page Design --- S.U.R.Y.A. Institutional Pages
 
 Page 8 --- Vault Command Center (the post-login dashboard)
 
@@ -1459,7 +1459,7 @@ Preserved As-Is)
 
 These three pages are not being redesigned. They are described here only
 to state precisely what stays unchanged and what single integration
-point connects each of them into NyayaVault.
+point connects each of them into S.U.R.Y.A..
 
 Page 18 --- S.U.R.Y.A. Citizen Suite
 
@@ -1475,7 +1475,7 @@ area/location/experience.
 
 Integration point: the AI chat now calls the server-side AI Proxy
 Service (2.3) instead of a browser-exposed key. This surface has zero
-connection to any NyayaVault case data --- it answers from general
+connection to any S.U.R.Y.A. case data --- it answers from general
 legal-guidance content only, by design, since a citizen has no
 case-assignment to scope access against.
 
@@ -1494,7 +1494,7 @@ graph, judgment search.
 
 Integration point: every document the lawyer\'s dashboard shows, every
 fact their AI summary cites, and every node in their connection graph
-must trace back to a document that is (a) filed in NyayaVault and (b)
+must trace back to a document that is (a) filed in S.U.R.Y.A. and (b)
 explicitly disclosed to that lawyer for that case. A lawyer cannot
 search, browse, or have AI summarize any document outside an active
 disclosure grant --- attempting to reference one returns the same
@@ -1511,9 +1511,9 @@ Unchanged features: topic-wise case library, simple/detailed summary
 toggle, bookmarks and notes, quiz mode.
 
 Integration point: the library is sourced only from published, redacted
-judgments that NyayaVault has moved to its Archived/Public lifecycle
+judgments that S.U.R.Y.A. has moved to its Archived/Public lifecycle
 state --- never from live or sealed case material. This is the one place
-S.U.R.Y.A. reads from NyayaVault directly, and it only ever reads the
+S.U.R.Y.A. reads from S.U.R.Y.A. directly, and it only ever reads the
 public end of the document lifecycle.
 
 5.6 Cross-Cutting Interaction Patterns
@@ -1581,7 +1581,7 @@ Could be off-screen (page requires horizontal scroll or a wider
 viewport) or genuinely not yet built Screenshot, current build
 (incomplete view)
 
-NyayaVault home page (DMS-primary hero, attribution bar, primary sign-in
+S.U.R.Y.A. home page (DMS-primary hero, attribution bar, primary sign-in
 CTA, trust badges) Not built --- the screenshot shows the S.U.R.Y.A.
 module\'s own hero occupying the platform\'s home page position
 Screenshot, current build
@@ -1604,7 +1604,7 @@ unsafe for production README.md, .env.local (uploaded earlier)
 
 Reading this table correctly: the project is currently at the stage of
 \"a well-designed front-end shell for the secondary module exists; the
-primary module (NyayaVault) has not been started, and nothing below the
+primary module (S.U.R.Y.A.) has not been started, and nothing below the
 UI layer exists yet.\"\* This is a normal, early, and entirely workable
 starting point --- it just means the immediate next steps are UI
 restructuring and backend foundation-laying, not deep feature work on
@@ -1630,12 +1630,12 @@ of three roles and visually strong; extend, don\'t replace
 S.U.R.Y.A.\'s own dotted-letter wordmark treatment (\"S.U.R.Y.A.\" with
 visible periods) Keep, but only within the S.U.R.Y.A. module\'s own
 pages Distinct, recognizable sub-brand identity; wrong only when it
-appears where the NyayaVault identity should be (the platform home page)
+appears where the S.U.R.Y.A. identity should be (the platform home page)
 
 Card color assignments Citizen = amber/orange · Lawyer = navy/indigo ·
 Student = green Consistent with every design pass so far in this project
 
-Primary platform brand NyayaVault, not S.U.R.Y.A. Explicit, repeated
+Primary platform brand S.U.R.Y.A., not S.U.R.Y.A. Explicit, repeated
 instruction across this entire project: the DMS is primary, S.U.R.Y.A.
 is a module
 
@@ -1643,7 +1643,7 @@ is a module
 
 The single most important unresolved issue: the platform\'s home page
 currently is the S.U.R.Y.A. module\'s landing page. There is, at
-present, no separate \"NyayaVault home page\" --- the two have been
+present, no separate \"S.U.R.Y.A. home page\" --- the two have been
 conflated into one screen. Every other page-level task in this part
 depends on un-conflating these first:
 
@@ -1654,9 +1654,9 @@ parent screen), reached after a visitor chooses to go into the module
 from the real home page --- not shown as the very first thing every
 visitor sees.
 
-A new, separate NyayaVault home page must be built at the platform\'s
+A new, separate S.U.R.Y.A. home page must be built at the platform\'s
 actual root route, following Part 5.5 Page 1 exactly (institutional
-attribution bar, NyayaVault hero, primary \"Sign in to the Document
+attribution bar, S.U.R.Y.A. hero, primary \"Sign in to the Document
 Management System\" CTA, trust badges, and only then --- visually
 demoted, below the fold --- the \"Powered by S.U.R.Y.A.\" section
 containing the three existing role cards).
@@ -1671,7 +1671,7 @@ existing one.
 
 6.4 Detailed page-by-page fix list
 
-6.4.1 NyayaVault Home Page (new build, replacing the current root route)
+6.4.1 S.U.R.Y.A. Home Page (new build, replacing the current root route)
 
 Build per Part 5.5, Page 1, in full. As a condensed checklist against
 what\'s currently live:
@@ -1680,7 +1680,7 @@ New institutional attribution bar: \"Government of India · Unified Legal
 & Judicial Records Platform · Ministry of Law and Justice (Demo)\" +
 EN/हिन्दी toggle, top-most element on the page
 
-New header: NyayaVault wordmark (serif) + subtitle \"Unified Legal &
+New header: S.U.R.Y.A. wordmark (serif) + subtitle \"Unified Legal &
 Judicial Records Platform,\" nav links (Home · Departments · RTI ·
 Contact)
 
@@ -1704,7 +1704,7 @@ Below the hero, a clearly separated section: heading \"Public &
 Professional Legal Assistance --- Powered by S.U.R.Y.A.,\" one line of
 context (\"No login required for citizens\"), then the three role cards
 
-Footer with a NyayaVault-level security statement (\"All platform
+Footer with a S.U.R.Y.A.-level security statement (\"All platform
 activity is logged and monitored\") in addition to any existing
 S.U.R.Y.A.-level footer copy
 
@@ -1735,7 +1735,7 @@ needed:
 Split layout exists: dark navy info panel (left) + white sign-in card
 (right)
 
-Left panel contains the NyayaVault mark, tagline, three trust
+Left panel contains the S.U.R.Y.A. mark, tagline, three trust
 statements, and the closing line \"Authorised personnel only. All
 activity on this system is logged and monitored.\"
 
@@ -1780,7 +1780,7 @@ Do not redesign the Citizen or Lawyer card visuals.
 Do not change the S.U.R.Y.A. acronym, its dotted-letter wordmark
 treatment, or its chakra glyph.
 
-Do not begin building any authenticated NyayaVault dashboard pages (Part
+Do not begin building any authenticated S.U.R.Y.A. dashboard pages (Part
 5.5, Pages 8--17) --- there is no backend, database, or auth system yet
 for them to connect to, so building their UI now would produce
 disconnected screens. Finish 6.4.1--6.4.3 first; that gets the
@@ -1797,7 +1797,7 @@ connect to today.
 Run this after 6.4.1--6.4.3 are complete, before moving on to anything
 else:
 
-Visiting the platform\'s root route shows the NyayaVault hero, not the
+Visiting the platform\'s root route shows the S.U.R.Y.A. hero, not the
 S.U.R.Y.A. hero
 
 The institutional attribution bar is visible above the header on the
@@ -1839,7 +1839,7 @@ this document is revisited.
 
 PART 7 --- CLOSING SUMMARY & BUILD PRIORITIES
 
-What this platform is: NyayaVault, a permissioned-blockchain-secured
+What this platform is: S.U.R.Y.A., a permissioned-blockchain-secured
 document and case management system for police, courts, forensic labs,
 and legal departments --- with S.U.R.Y.A., the existing AI assistant
 suite, preserved in full and reconnected as a secondary, read-scoped
@@ -1890,7 +1890,7 @@ Search & AI Classification Service, then the public Verify-a-Document
 tool (Page 4).
 
 Reconnect S.U.R.Y.A. (Pages 18--20) through the AI Proxy Service,
-replacing its demo data with real, permission-scoped NyayaVault data.
+replacing its demo data with real, permission-scoped S.U.R.Y.A. data.
 
 Audit Trail Explorer, Blockchain Network Monitor, and Admin Panel (Pages
 15--17) --- these can be built last precisely because they are oversight

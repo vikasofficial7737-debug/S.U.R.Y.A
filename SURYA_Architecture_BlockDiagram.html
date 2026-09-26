@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>S.U.R.Y.A. — System Architecture (Block Diagram)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; background: #04070d; overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; }
+  .slide { width: 1920px; height: 1080px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 10px; padding: 22px 36px 16px;
+    background:
+      radial-gradient(1100px 520px at 88% -12%, rgba(240,180,41,.09), transparent 60%),
+      radial-gradient(900px 600px at -8% 112%, rgba(53,196,200,.10), transparent 55%),
+      radial-gradient(700px 400px at 50% 50%, rgba(79,143,247,.05), transparent 60%),
+      linear-gradient(160deg, #0a1424 0%, #070d18 55%, #05090f 100%);
+    color: #e8eef7; }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: flex-end; justify-content: space-between; }
+  .brand h1 { font-size: 40px; letter-spacing: 7px; font-weight: 700; line-height: 1.05;
+    background: linear-gradient(90deg, #f6c945, #f0a429 55%, #ffd977);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .brand p { font-size: 15px; color: #93a7c4; margin-top: 3px; }
+  .brand p b { color: #cfe0f5; font-weight: 600; }
+  .badge { font-size: 12px; letter-spacing: 2.5px; color: #7e93b3; border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px; padding: 7px 16px; white-space: nowrap; }
+
+  /* ---------- band tags ---------- */
+  .btag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2.2px;
+    color: #0b1420; border-radius: 6px; padding: 4px 12px; margin-bottom: 8px; }
+  .t-blue  { background: #6ea8ff; }
+  .t-rose  { background: #fb7185; }
+  .t-multi { background: linear-gradient(90deg,#a78bfa,#34d399,#f0b429); }
+
+  /* ---------- generic card ---------- */
+  .card { background: rgba(15,26,45,.92); border: 1px solid rgba(255,255,255,.09);
+    border-radius: 14px; padding: 13px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .card h3 { font-size: 16px; margin-bottom: 9px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+  .d-blue { background: #6ea8ff; } .d-gold { background: #f0b429; }
+  .d-rose { background: #fb7185; } .d-purple { background: #a78bfa; }
+  .d-green { background: #34d399; } .d-amber { background: #f6c945; }
+  .note { font-size: 12px; color: #8ba0bf; margin-top: 9px; line-height: 1.45; }
+  .note b { color: #c9d9ee; font-weight: 600; }
+  .card.gold { background: rgba(38,30,10,.55); border-color: rgba(240,180,41,.28); }
+
+  /* ---------- chips ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { font-size: 12.5px; padding: 5px 11px; border-radius: 8px; line-height: 1.25;
+    background: rgba(110,168,255,.10); border: 1px solid rgba(110,168,255,.30); color: #d7e5fb; }
+  .gold .chip { background: rgba(240,180,41,.09); border-color: rgba(240,180,41,.35); color: #f8e7bd; }
+
+  /* ---------- band 1 ---------- */
+  .b1 { display: grid; grid-template-columns: 1fr 330px 1fr; gap: 14px; align-items: stretch; }
+  .identity { display: flex; flex-direction: column; justify-content: center; text-align: center; gap: 7px;
+    border-style: dashed; background: rgba(10,20,36,.65); }
+  .identity .big { font-size: 15px; font-weight: 700; color: #e9f1fc; }
+  .identity .small { font-size: 11.5px; color: #8ba0bf; line-height: 1.5; }
+  .identity .small b { color: #c9d9ee; }
+
+  /* ---------- band 2 ---------- */
+  .b2 { display: grid; grid-template-columns: 1fr 46px 1fr; gap: 12px; align-items: stretch; }
+  .mods { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .mod { background: rgba(110,168,255,.07); border: 1px solid rgba(110,168,255,.22);
+    border-radius: 10px; padding: 8px 11px; display: flex; gap: 10px; align-items: flex-start; }
+  .mod .num { font-size: 10.5px; font-weight: 700; color: #6ea8ff; border: 1px solid rgba(110,168,255,.4);
+    border-radius: 6px; padding: 2px 6px; margin-top: 1px; flex: 0 0 auto; }
+  .mod b { font-size: 14px; display: block; color: #eaf2fd; }
+  .mod span { font-size: 11.5px; color: #9db1cd; line-height: 1.35; display: block; margin-top: 2px; }
+  .suite-mod { background: rgba(240,180,41,.07); border: 1px solid rgba(240,180,41,.25);
+    border-radius: 10px; padding: 8px 11px; display: flex; gap: 10px; align-items: flex-start; }
+  .suite-mod .num { font-size: 10.5px; font-weight: 700; color: #f0b429; border: 1px solid rgba(240,180,41,.45);
+    border-radius: 6px; padding: 2px 6px; margin-top: 1px; flex: 0 0 auto; }
+  .suite-mod b { font-size: 14px; display: block; color: #f6ecd2; }
+  .suite-mod span { font-size: 11.5px; color: #b3a37e; line-height: 1.35; display: block; margin-top: 2px; }
+  .divider { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .divider .line { width: 0; flex: 1; border-left: 2px dashed rgba(240,180,41,.35); }
+  .divider .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px;
+    letter-spacing: 1.6px; color: #b3a37e; white-space: nowrap; }
+
+  /* ---------- band 3 ---------- */
+  .b3 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .sec { background: rgba(251,113,133,.06); border: 1px solid rgba(251,113,133,.26); border-radius: 12px;
+    padding: 10px 13px; }
+  .sec b { font-size: 14px; color: #ffd9df; display: flex; align-items: center; gap: 8px; }
+  .sec span { font-size: 11.5px; color: #b7a3ab; line-height: 1.4; display: block; margin-top: 4px; }
+
+  /* ---------- band 4 ---------- */
+  .b4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .col .card { height: 100%; }
+  .kv { display: flex; flex-direction: column; gap: 6px; }
+  .kv .row { display: flex; gap: 8px; font-size: 12.5px; line-height: 1.4; color: #c6d5ea; }
+  .kv .row::before { content: "▸"; color: #7e93b3; flex: 0 0 auto; }
+  .kv .row b { color: #eaf2fd; font-weight: 600; }
+
+  /* ---------- flow arrows ---------- */
+  .flow { display: flex; align-items: center; justify-content: center; gap: 12px; height: 16px; }
+  .flow .arr { color: #62809f; font-size: 12px; line-height: 1; }
+  .flow span { font-size: 11px; letter-spacing: 1.8px; color: #62809f; text-transform: uppercase; }
+  .flow .hl { flex: 0 0 260px; height: 0; border-top: 1px dashed rgba(255,255,255,.10); }
+
+  /* ---------- footer ---------- */
+  footer { margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 9px; }
+  .stack { font-size: 12.5px; color: #a9bdd8; border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.03); border-radius: 999px; padding: 5px 14px; }
+  .stack b { color: #e8f0fb; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <!-- ================= HEADER ================= -->
+  <header>
+    <div class="brand">
+      <h1>S.U.R.Y.A.</h1>
+      <p><b>Secure Digital Record · Unified Document Management + Judicial Assistance</b> — System Architecture</p>
+    </div>
+    <div class="badge">SYSTEM BLOCK DIAGRAM</div>
+  </header>
+
+  <!-- ================= BAND 1 · USERS ================= -->
+  <section>
+    <div class="btag t-blue">1 · USERS &amp; ACCESS</div>
+    <div class="b1">
+      <div class="card">
+        <h3><span class="dot d-blue"></span>Secure DMS — officials (6 roles)</h3>
+        <div class="chips">
+          <span class="chip">Investigating Officer</span><span class="chip">Forensic Officer</span>
+          <span class="chip">Court / Registrar Staff</span><span class="chip">Legal Dept. Officer</span>
+          <span class="chip">Records / Compliance</span><span class="chip">System Admin</span>
+        </div>
+        <p class="note">Each official binds to a <b>Unique ID</b> (e.g. IO-2026-0142) — the ID defines caseload &amp; permissions.</p>
+      </div>
+      <div class="card identity">
+        <div class="big">🔐 Shared identity layer</div>
+        <div class="small">DigiLocker-style <b>phone + OTP</b> verification on both doors.<br>Phone ↔ Unique-ID binding enforced both ways.</div>
+      </div>
+      <div class="card gold">
+        <h3><span class="dot d-gold"></span>Judicial Assistance Suite — public</h3>
+        <div class="chips">
+          <span class="chip">Citizen</span><span class="chip">Lawyer · Bar ID + CoP</span>
+          <span class="chip">Student</span><span class="chip">Suite Admin</span>
+        </div>
+        <p class="note">Role door → OTP → dashboard. <b>Advocates</b> verified against Bar councils before access.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow"><div class="hl"></div><span>authenticated sessions</span><div class="arr">▼</div><div class="hl"></div></div>
+
+  <!-- ================= BAND 2 · APPLICATION ================= -->
+  <section>
+    <div class="btag t-blue">2 · APPLICATION LAYER — React 18 + Vite + TypeScript SPA (two doors, one platform)</div>
+    <div class="b2">
+      <div class="card">
+        <h3><span class="dot d-blue"></span>Secure DMS modules</h3>
+        <div class="mods">
+          <div class="mod"><span class="num">01</span><div><b>Role Dashboards</b><span>Live KPIs · clickable “Active cases”</span></div></div>
+          <div class="mod"><span class="num">02</span><div><b>Document Repository</b><span>Case-centric · unique Case IDs · filters</span></div></div>
+          <div class="mod"><span class="num">03</span><div><b>Case Workspace</b><span>Overview · timeline · graph · case file</span></div></div>
+          <div class="mod"><span class="num">04</span><div><b>Evidence &amp; Versions</b><span>Custody trail · corrections = new version</span></div></div>
+          <div class="mod"><span class="num">05</span><div><b>AI Assistant</b><span>“Open docs of CR/124/2026” · case Q&amp;A</span></div></div>
+          <div class="mod"><span class="num">06</span><div><b>Admin Panel</b><span>Approvals · provisioning · access history</span></div></div>
+        </div>
+      </div>
+      <div class="divider"><div class="line"></div><div class="lbl">SUITE NEVER WRITES DMS CORE</div><div class="line"></div></div>
+      <div class="card gold">
+        <h3><span class="dot d-gold"></span>Judicial Assistance Suite modules</h3>
+        <div class="mods">
+          <div class="suite-mod"><span class="num">01</span><div><b>Active Cases + Dossier</b><span>Overview · facts · statute notes</span></div></div>
+          <div class="suite-mod"><span class="num">02</span><div><b>Timeline + Case Graph</b><span>Expandable stages · outcomes</span></div></div>
+          <div class="suite-mod"><span class="num">03</span><div><b>Citizen helpdesk</b><span>Guided legal help · procedures</span></div></div>
+          <div class="suite-mod"><span class="num">04</span><div><b>Student learning hub</b><span>Legal literacy · case studies</span></div></div>
+          <div class="suite-mod"><span class="num">05</span><div><b>Advocate Verification</b><span>Bar IDs · councils · CoP</span></div></div>
+          <div class="suite-mod"><span class="num">06</span><div><b>Suite Admin Panel</b><span>Users · verification queue</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow"><div class="hl"></div><span>every action passes through</span><div class="arr">▼</div><div class="hl"></div></div>
+
+  <!-- ================= BAND 3 · SECURITY ================= -->
+  <section>
+    <div class="btag t-rose">3 · SECURITY &amp; GOVERNANCE (cross-cutting)</div>
+    <div class="b3">
+      <div class="sec"><b><span class="dot d-rose"></span>RBAC</b><span>6 DMS roles · page &amp; action gating · read-only oversight for non-admins</span></div>
+      <div class="sec"><b><span class="dot d-rose"></span>Case-level access</b><span>Officers see only their caseload · access requests → admin approval</span></div>
+      <div class="sec"><b><span class="dot d-rose"></span>Immutability</b><span>Documents read-only · corrections only as ledger-anchored new versions</span></div>
+      <div class="sec"><b><span class="dot d-rose"></span>Audit trail</b><span>Every document open logged — who · when · what — visible to admin</span></div>
+    </div>
+  </section>
+
+  <div class="flow"><div class="hl"></div><span>reads / writes</span><div class="arr">▼</div><div class="hl"></div></div>
+
+  <!-- ================= BAND 4 · INTELLIGENCE / DATA / TRUST ================= -->
+  <section>
+    <div class="btag t-multi">4 · INTELLIGENCE · DATA · TRUST</div>
+    <div class="b4">
+      <div class="col"><div class="card">
+        <h3><span class="dot d-purple"></span>Gemini AI</h3>
+        <div class="kv">
+          <div class="row"><span><b>Case-aware assistant</b> — opens documents by Case ID, explains case graphs</span></div>
+          <div class="row"><span><b>Caseload-scoped</b> — refuses cases outside the user's permissions</span></div>
+          <div class="row"><span><b>Suite side</b> — hearing briefs, precedent pointers, evidence summaries</span></div>
+        </div>
+      </div></div>
+      <div class="col"><div class="card">
+        <h3><span class="dot d-green"></span>Supabase Postgres + RLS</h3>
+        <div class="kv">
+          <div class="row"><span><b>13 RLS-protected tables</b> — users · cases · documents · evidence</span></div>
+          <div class="row"><span><b>Access requests</b> &amp; grants · document open-history (audit)</span></div>
+          <div class="row"><span><b>Row-level security</b> mirrors the Admin Panel permission matrix</span></div>
+        </div>
+      </div></div>
+      <div class="col"><div class="card">
+        <h3><span class="dot d-amber"></span>Blockchain anchoring</h3>
+        <div class="kv">
+          <div class="row"><span><b>SHA-256 hash chain</b> — every view / version appended as a block</span></div>
+          <div class="row"><span><b>Polygon Amoy</b> anchoring with graceful offline fallback</span></div>
+          <div class="row"><span><b>Tamper check &amp; repair</b> — one-click chain verification</span></div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <span class="stack"><b>React 18</b> · TypeScript · Vite</span>
+    <span class="stack"><b>Supabase</b> · Postgres + Row-Level Security</span>
+    <span class="stack"><b>Google Gemini</b> · AI assistance</span>
+    <span class="stack"><b>Polygon Amoy</b> · hash anchoring</span>
+    <span class="stack"><b>SHA-256</b> · append-only ledger</span>
+  </footer>
+
+</div>
+</body>
+</html>

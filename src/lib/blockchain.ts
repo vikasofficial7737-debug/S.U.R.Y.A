@@ -1,5 +1,5 @@
 /* ============================================================================
-   NyayaVault Integrity Ledger — a real, verifiable hash chain.
+   S.U.R.Y.A. Integrity Ledger — a real, verifiable hash chain.
    ----------------------------------------------------------------------------
    Design (per SIH spec §16):
      • Documents are NOT stored on the chain — only their SHA-256 hashes,
@@ -71,8 +71,8 @@ export async function ensureGenesis(actor = 'Platform Administration', actorId =
   if (chain.length) return chain;
   const genesis: Omit<LedgerBlock, 'hash'> = {
     index: 0, timestamp: new Date().toISOString(), action: 'GENESIS',
-    actor, actorId, caseId: '—', documentName: 'NyayaVault integrity ledger initialization',
-    payloadHash: await sha256Hex('NyayaVault-GENESIS-' + new Date().toISOString().slice(0, 10)),
+    actor, actorId, caseId: '—', documentName: 'S.U.R.Y.A. integrity ledger initialization',
+    payloadHash: await sha256Hex('S.U.R.Y.A.-GENESIS-' + new Date().toISOString().slice(0, 10)),
     previousHash: ZERO_HASH, nonce: 0,
   };
   const block: LedgerBlock = { ...genesis, hash: await computeBlockHash(genesis) };

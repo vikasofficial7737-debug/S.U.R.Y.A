@@ -1,5 +1,5 @@
 /* Shared DMS document registry — the single source of truth that both the
-   NyayaVault DMS workspace and the S.U.R.Y.A. assistance suite read from.
+   S.U.R.Y.A. DMS workspace and the S.U.R.Y.A. assistance suite read from.
    SURYA roles only ever RECEIVE read-only, explicitly shared records;
    they never get write access into the DMS core. */
 

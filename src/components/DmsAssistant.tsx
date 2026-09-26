@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bot, Send, X, Sparkles } from 'lucide-react';
 import { askDmsAssistant, type DmsContext } from '../lib/dmsAssistant';
 
-export function DmsAssistant({ ctx }: { ctx: DmsContext }) {
+export function DmsAssistant({ ctx, onOpenCase }: { ctx: DmsContext; onOpenCase?: (caseId: string) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [chat, setChat] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
@@ -24,6 +24,19 @@ export function DmsAssistant({ ctx }: { ctx: DmsContext }) {
     setChat(c => [...c, { role: 'user', text: question }]);
     setQ(''); setBusy(true); setError('');
     try {
+      /* Case-ID shortcut: "open docs of CR/124/2026" jumps straight to that case workspace. */
+      const caseMatch = question.toUpperCase().match(/\b((?:CR|CV|CY|MC|SC)\/\d{3,4}\/\d{4})\b/);
+      const wantsOpen = /open|show|pull|fetch|access/i.test(question) && /doc|case|file|record/i.test(question);
+      if (caseMatch && wantsOpen && onOpenCase) {
+        const caseId = caseMatch[1];
+        const known = ctx.caseIds.includes(caseId);
+        setChat(c => [...c, { role: 'ai', text: known
+          ? `Opening case ${caseId} — pulling up its document workspace now.`
+          : `Case ${caseId} is outside your assigned caseload, so I cannot open its documents. I have noted the ID — send an access request from the Active Cases page and the System Admin can approve it.` }]);
+        setBusy(false);
+        if (known) onOpenCase(caseId);
+        return;
+      }
       const answer = await askDmsAssistant(question, ctx);
       setChat(c => [...c, { role: 'ai', text: answer }]);
     } catch (e) {
@@ -37,12 +50,12 @@ export function DmsAssistant({ ctx }: { ctx: DmsContext }) {
     </button>}
     {open && <div className="dms-assist-panel">
       <div className="dms-assist-head">
-        <div><Bot /><div><b>NyayaVault Assistant</b><small>{ctx.role} · sees metadata only, never document contents</small></div></div>
+        <div><Bot /><div><b>S.U.R.Y.A. DMS Assistant</b><small>{ctx.role} · sees metadata only, never document contents</small></div></div>
         <button onClick={() => setOpen(false)}><X /></button>
       </div>
       <div className="dms-assist-body">
         {chat.length === 0 && <>
-          <p className="dms-assist-hello"><Sparkles /> Ask about your pending work, verification status, custody, or what needs your action. Answers are grounded in this workspace's live data.</p>
+          <p className="dms-assist-hello"><Sparkles /> Ask about your pending work, verification status, custody, or what needs your action. You can also say <b>“open docs of CR/124/2026”</b> and I will take you straight to that case file.</p>
           <div className="dms-assist-chips">
             {(suggestions[ctx.role] ?? suggestions['System Admin']).map(s =>
               <button key={s} onClick={() => send(s)}>{s}</button>)}

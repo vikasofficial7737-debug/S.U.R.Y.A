@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, LockKeyhole, Sun, Moon, Scale, Sparkles } from 'lucide-react';
+import { ArrowRight, LockKeyhole, Sun, Moon, Scale } from 'lucide-react';
 import { SuiteRoleCards } from './AuthFlows';
 import type { SuiteRole } from '../data/identityBindings';
 import './surya.css';
@@ -32,7 +32,6 @@ export function SuryaLanding({ dark, setDark, onDmsLogin, onSuiteRole }: Props) 
         </div>
         <div className="sl-top-actions">
           <button className="sl-suite-btn" onClick={() => setRolePopup(true)}>
-            <Sparkles size={14} />
             SURYA for Judicial Assistance
           </button>
           <button className="sl-theme" onClick={() => setDark(!dark)} aria-label="Toggle theme">
@@ -52,6 +51,7 @@ export function SuryaLanding({ dark, setDark, onDmsLogin, onSuiteRole }: Props) 
         </div>
 
         <button className="sl-login" onClick={onDmsLogin}>
+          <span className="sl-ripple-ring" aria-hidden />
           <LockKeyhole size={17} />
           Login
           <ArrowRight size={16} />

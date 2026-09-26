@@ -1,4 +1,4 @@
-# NyayaVault — Blockchain & Backend Deployment Guide
+# S.U.R.Y.A. — Blockchain & Backend Deployment Guide
 
 From zero to live on-chain anchoring. ~30 minutes.
 

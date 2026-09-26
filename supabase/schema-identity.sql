@@ -1,5 +1,5 @@
 -- ============================================================================
--- NyayaVault — IDENTITY & LEDGER layer (safe to run alongside schema-v2.sql)
+-- S.U.R.Y.A. — IDENTITY & LEDGER layer (safe to run alongside schema-v2.sql)
 --
 -- Split out of schema.sql to avoid a table collision: schema-v2.sql owns the
 -- DMS core (cases, documents, document_versions, users, access_grants, ...),

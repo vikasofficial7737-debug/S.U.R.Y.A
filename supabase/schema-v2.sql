@@ -1,5 +1,5 @@
 -- ============================================================================
--- NyayaVault — Schema v2 (blockchain-supabase-integration-description.md)
+-- S.U.R.Y.A. — Schema v2 (blockchain-supabase-integration-description.md)
 -- Run AFTER (or instead of) schema.sql in a fresh project.
 -- Spec-exact tables, real RLS enforcement, JWT custom claims, append-only audit.
 -- ============================================================================

@@ -176,7 +176,7 @@ function Landing({ role, setRole, start, dark, setDark, goDms }: { role: Role, s
       <div className="gov-emblem-brand">
         <div className="gov-chakra">☸</div>
         <div>
-          <b>NyayaVault — Unified Legal &amp; Judicial Records Platform</b>
+          <b>S.U.R.Y.A. — Unified Legal &amp; Judicial Records Platform</b>
           <small>Ministry of Law and Justice (Demo) · National Informatics Centre style interface</small>
         </div>
       </div>

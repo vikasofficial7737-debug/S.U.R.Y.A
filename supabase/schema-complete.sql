@@ -1,5 +1,5 @@
 -- ============================================================================
--- S.U.R.Y.A. / NyayaVault — COMPLETE BACKEND SCHEMA (single file)
+-- S.U.R.Y.A. — COMPLETE BACKEND SCHEMA (single file)
 -- ============================================================================
 -- HOW TO INSTALL (2 minutes):
 --   1. Open https://supabase.com/dashboard -> your project -> SQL Editor
@@ -15,7 +15,7 @@
 -- ============================================================================
 
 -- ============================================================================
--- NyayaVault — Schema v2 (blockchain-supabase-integration-description.md)
+-- S.U.R.Y.A. — Schema v2 (blockchain-supabase-integration-description.md)
 -- Run AFTER (or instead of) schema.sql in a fresh project.
 -- Spec-exact tables, real RLS enforcement, JWT custom claims, append-only audit.
 -- ============================================================================
@@ -349,7 +349,7 @@ from cases c where c.case_number = 'CR/124/2026'
 
 
 -- ============================================================================
--- NyayaVault — IDENTITY & LEDGER layer (safe to run alongside schema-v2.sql)
+-- S.U.R.Y.A. — IDENTITY & LEDGER layer (safe to run alongside schema-v2.sql)
 --
 -- Split out of schema.sql to avoid a table collision: schema-v2.sql owns the
 -- DMS core (cases, documents, document_versions, users, access_grants, ...),

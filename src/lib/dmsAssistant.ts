@@ -8,6 +8,7 @@ export type DmsContext = {
   role: string;
   officer: string;
   jurisdiction: string;
+  caseIds: string[];
   documents: { name: string; type: string; caseId: string; status: string; version: number; signed: boolean; legalHold: boolean; department: string }[];
   auditCount: number;
   ledgerBlocks: number;
@@ -29,7 +30,7 @@ export function buildAssistantPrompt(question: string, ctx: DmsContext): string 
   const docs = ctx.documents.map(d => `- ${d.name} (${d.type}, ${d.caseId}, v${d.version}, ${d.status}${d.signed ? ', signed' : ', unsigned'}${d.legalHold ? ', LEGAL HOLD' : ''}, dept: ${d.department})`).join('\n') || '- (none visible)';
   const ev = ctx.evidence.map(e => `- ${e.evId} (${e.type}, custodian: ${e.custodian}, ${e.status}, integrity: ${e.integrity})`).join('\n') || '- (none)';
   const audit = ctx.recentAudit.map(a => `- ${a.at}: ${a.action} — ${a.target} (by ${a.actor})`).join('\n') || '- (none)';
-  return `You are the embedded assistant of NyayaVault, a Secure Legal & Investigation Document Management System for Indian agencies.
+  return `You are the embedded assistant of S.U.R.Y.A. (Smart Unified Resource for Judicial Assistance), the Secure Legal & Investigation Document Management System for Indian agencies. Every case carries a unique case ID (e.g. CR/124/2026); documents belong to cases and are immutable — corrections happen only as new versions with a recorded reason.
 
 YOUR ROLE CHARTER: ${charter}
 
